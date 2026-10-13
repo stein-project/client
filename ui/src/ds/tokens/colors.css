@@ -1,0 +1,40 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2026 Breno Xavier
+ */
+
+/* tokens/colors.css — the Stein launcher's colors.
+
+   A near-black violet background, lavender text, a muted gold for headings, numbers and highlights, and one
+   saturated violet as the accent for primary buttons and live indicators. Rules (hairlines) are translucent text
+   color, so everything else derives from these four base colors. */
+
+:root {
+  /* ── base colors ─────────────────────────────────────────────────────── */
+  --bg:          #0a0614;   /* background                         */
+  --ink:         #e8e1f5;   /* primary text                       */
+  --gold:        #b89cd9;   /* headings, numbers, highlights      */
+  --accent:      #7c4dff;   /* primary buttons, live indicators   */
+
+  /* ── hairline rules (translucent text color) ─────────────────────────── */
+  --rule:        rgba(232, 225, 245, 0.10);
+  --rule-strong: rgba(232, 225, 245, 0.22);
+
+  /* ── fixed values ────────────────────────────────────────────────────── */
+  --on-accent:   #ffffff;   /* text on accent-filled buttons      */
+
+  /* ── derived colors ──────────────────────────────────────────────────── */
+  --surface-raised:     color-mix(in oklab, var(--bg) 88%, #000 12%);
+
+  --text-muted:         color-mix(in oklab, var(--ink) 55%, transparent);
+  --text-faint:         color-mix(in oklab, var(--ink) 35%, transparent);
+
+  --accent-soft:        color-mix(in oklab, var(--accent) 8%, transparent);
+  --accent-glow:        color-mix(in oklab, var(--accent) 45%, transparent);
+
+  --selection-bg:       var(--accent);
+  --selection-fg:       var(--bg);
+}

@@ -1,0 +1,82 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2026 Breno Xavier
+ */
+
+/* components.css — reusable component styles of the Stein design system: buttons, tags and section headers.
+   Layout classes for the launcher's screens live in app.css. */
+
+/* ── Button ──────────────────────────────────────────────────────────────
+   The workshop's general button: a hairline mono pill. Variants: ghost
+   (default, transparent) and accent (violet fill). */
+
+.sl-btn {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  border: var(--hairline) solid var(--rule-strong);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background var(--dur-base) var(--ease-out),
+              color var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-out),
+              transform var(--dur-base) var(--ease-out);
+}
+.sl-btn svg { transition: transform var(--dur-base) var(--ease-out); }
+.sl-btn:hover { border-color: var(--gold); color: var(--gold); }
+.sl-btn:hover svg { transform: translate(2px, -2px); }
+
+.sl-btn--accent {
+  background: var(--accent); color: var(--on-accent); border-color: var(--accent);
+}
+.sl-btn--accent:hover { transform: translateY(-1px); color: var(--on-accent); }
+
+.sl-btn--lg { padding: 14px 24px; font-size: var(--text-label); }
+.sl-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.sl-btn:disabled:hover { border-color: var(--rule-strong); color: var(--ink); transform: none; }
+
+/* ── Tag — small mono label, optionally pill-bordered ───────────────────── */
+
+.sl-tag {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.sl-tag--ritual { color: var(--gold); opacity: 0.9; }
+.sl-tag--pill {
+  padding: 7px 14px;
+  border: var(--hairline) solid var(--rule-strong);
+  border-radius: var(--radius-pill);
+}
+.sl-tag--pill.sl-tag--ritual { border-color: var(--gold); }
+.sl-tag__dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+.sl-tag__dot--live { animation: sl-live-blink 2s var(--ease-in-out) infinite; }
+@keyframes sl-live-blink {
+  0%, 60%, 100% { opacity: 1; transform: scale(1); }
+  30% { opacity: 0.4; transform: scale(0.7); }
+}
+
+/* ── SectionHeader — roman numeral / number + hairline + tracked label ──── */
+
+.sl-shead { display: flex; align-items: center; gap: var(--space-3); color: var(--gold); }
+.sl-shead__n { font-family: var(--font-mono); font-size: var(--text-label); }
+.sl-shead__rule { flex: 0 0 56px; height: var(--hairline); background: var(--rule-strong); }
+.sl-shead__label {
+  font-family: var(--font-mono); font-size: var(--text-label);
+  letter-spacing: var(--tracking-wide); text-transform: uppercase;
+}

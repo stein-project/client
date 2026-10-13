@@ -1,0 +1,334 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2026 Breno Xavier
+ */
+
+/* The Stein Client on the Stein design system: tokens and components live in ds/ unchanged, the shared base classes
+   in ds/globals.css, and the window layout here: a 236px sidebar, mono navigation with Roman numerals, a dotted
+   background, plus a custom title bar, since the window is frameless. */
+
+@import './ds/tokens/fonts.css';
+@import './ds/tokens/colors.css';
+@import './ds/tokens/typography.css';
+@import './ds/tokens/spacing.css';
+@import './ds/tokens/motion.css';
+@import './ds/base.css';
+@import './ds/components.css';
+@import './ds/globals.css';
+
+html, body, #root { height: 100%; overflow: hidden; }
+body { user-select: none; }
+
+/* ── window ─────────────────────────────────────────────────────────────── */
+.window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 0.5px solid var(--rule-strong);
+  background: var(--bg);
+}
+.titlebar {
+  flex: 0 0 34px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 0 0 14px;
+  border-bottom: 0.5px solid var(--rule);
+  background: color-mix(in oklab, var(--bg) 92%, #000 8%);
+}
+.titlebar__title { font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--text-faint); }
+.titlebar__drag { flex: 1; align-self: stretch; }
+.titlebar__btn {
+  width: 44px;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.titlebar__btn:hover { background: color-mix(in oklab, var(--ink) 8%, transparent); color: var(--ink); }
+.titlebar__btn--close:hover { background: color-mix(in oklab, #e0708a 60%, transparent); color: #fff; }
+
+.window__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.window__body > * { flex: 1; min-height: 0; }
+.shell { flex: 1; display: flex; min-height: 0; }
+
+/* ── sidebar (same as the panel) ────────────────────────────────────────── */
+.sidebar {
+  flex: 0 0 236px;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 16px;
+  border-right: 0.5px solid var(--rule-strong);
+  background: color-mix(in oklab, var(--bg) 92%, #000 8%);
+}
+.wordmark { display: flex; align-items: center; gap: 12px; margin: 0 4px 32px; }
+.wordmark__name { font-family: var(--font-display); font-size: 18px; letter-spacing: 0.01em; line-height: 1.05; }
+.wordmark__name em { color: var(--gold); font-style: italic; }
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 0;
+  border-left: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  text-align: left;
+  transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.nav__item:hover { color: var(--ink); }
+.nav__item--active { color: var(--ink); border-left-color: var(--accent); background: color-mix(in oklab, var(--accent) 9%, transparent); }
+.nav__label { flex: 1; }
+.nav__idx { font-size: 9px; color: var(--text-faint); }
+.who { margin-top: auto; padding-top: 16px; border-top: 0.5px solid var(--rule); }
+.who__row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.who__head {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.5px solid var(--rule-strong);
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  image-rendering: pixelated;
+}
+.who__name { font-family: var(--font-mono); font-size: 11px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who__kind { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+
+/* ── main area (the panel's dotted background) ──────────────────────────── */
+.main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  background: radial-gradient(circle at center, color-mix(in oklab, var(--ink) 7%, transparent) 0.6px, transparent 0.8px);
+  background-size: 26px 26px;
+}
+.page { padding: 36px 44px 44px; max-width: 880px; }
+.page__head { margin-bottom: 28px; }
+.page__title { font-family: var(--font-display); font-size: 34px; line-height: 1.05; margin: 10px 0 0; font-weight: 400; }
+.page__lead { font-style: italic; color: var(--text-muted); font-size: 17px; margin: 6px 0 0; }
+
+/* ── play ───────────────────────────────────────────────────────────────── */
+.hero { display: flex; align-items: center; gap: 36px; padding: 20px 0 8px; }
+.hero__lead { font-style: italic; color: var(--text-muted); font-size: 18px; margin: 10px 0 18px; }
+.tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.play { margin-top: 30px; display: flex; flex-direction: column; gap: 14px; max-width: 520px; }
+.play .sl-btn--lg { align-self: flex-start; min-width: 220px; box-shadow: var(--glow-cta); }
+.play .sl-btn--lg:hover:not(:disabled) { box-shadow: var(--glow-cta-hover); }
+.status { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); min-height: 16px; }
+.status--err { color: #e0708a; text-transform: none; letter-spacing: 0; font-family: var(--font-body); font-size: 15px; line-height: 1.4; }
+.bar { height: 2px; background: var(--rule); overflow: hidden; }
+.bar__fill { height: 100%; background: var(--accent); box-shadow: 0 0 12px var(--accent-glow); transition: width var(--dur-base) var(--ease-out); }
+.bar--busy .bar__fill { width: 30% !important; animation: bar-slide 1.4s var(--ease-in-out) infinite; }
+@keyframes bar-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+.news { margin-top: 40px; padding: 18px 20px; display: flex; align-items: center; gap: 18px; }
+.news__text { flex: 1; }
+.news__title { font-family: var(--font-display); font-size: 18px; }
+.news__body { color: var(--text-muted); font-size: 15px; }
+
+/* ── list rows (mods, accounts) ─────────────────────────────────────────── */
+.rows { display: flex; flex-direction: column; }
+.row { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-top: 0.5px solid var(--rule); }
+.row:last-child { border-bottom: 0.5px solid var(--rule); }
+.row__main { flex: 1; min-width: 0; }
+.row__title { font-family: var(--font-display); font-size: 17px; }
+.row__title .mono { color: var(--gold); margin-left: 10px; font-size: 10px; }
+.row__text { color: var(--text-muted); font-size: 14px; }
+.section { margin-top: 34px; }
+.section:first-of-type { margin-top: 0; }
+.section .sl-shead { margin-bottom: 14px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.note { color: var(--text-faint); font-size: 14px; font-style: italic; margin-top: 12px; }
+.kv { display: grid; grid-template-columns: 160px 1fr; gap: 8px 16px; font-size: 14px; }
+.kv dt { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); padding-top: 3px; }
+.kv dd { margin: 0; color: var(--ink); word-break: break-all; }
+
+/* ── toggle (hairline + violet dot) ─────────────────────────────────────── */
+.toggle {
+  position: relative;
+  width: 38px;
+  height: 20px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  border: 0.5px solid var(--rule-strong);
+  background: transparent;
+  transition: border-color var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-out);
+}
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  transition: transform var(--dur-base) var(--ease-standard), background var(--dur-base) var(--ease-out);
+}
+.toggle--on { border-color: var(--accent); background: var(--accent-soft); }
+.toggle--on::after { transform: translateX(18px); background: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+
+/* ── sign-in ────────────────────────────────────────────────────────────── */
+.login { height: 100%; display: flex; align-items: center; justify-content: center; }
+.login__card { width: 440px; padding: 36px 36px 30px; text-align: center; }
+.login__update { margin-top: 24px; }
+.login__lead { font-style: italic; color: var(--text-muted); margin: 0 0 24px; }
+.code {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  letter-spacing: 0.3em;
+  color: var(--ink);
+  padding: 16px 0 16px 0.3em;
+  margin: 8px 0 18px;
+  border: 0.5px solid var(--rule-strong);
+  background: var(--surface-raised);
+  user-select: text;
+}
+.login .actions { justify-content: center; }
+.login .note { font-size: 13px; }
+
+/* ── motion ─────────────────────────────────────────────────────────────────
+   Short entrances with no bounce (per the design system's motion.css): content rises a few pixels as it fades in.
+   Pages, sign-in steps and messages animate on mount only; nothing waits for an exit animation, so clicks never
+   feel slow. */
+@keyframes enter-up   { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes enter-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes enter-card { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+.window { animation: enter-fade 220ms var(--ease-out) both; }
+.shell .sidebar { animation: enter-fade var(--dur-slow) var(--ease-out) both; }
+.page { animation: enter-up 260ms var(--ease-standard) both; }
+.login__card { animation: enter-card 380ms var(--ease-standard) both; }
+.stage { animation: enter-up 280ms var(--ease-standard) both; }
+.status, .news { animation: enter-up var(--dur-base) var(--ease-standard) both; }
+
+/* List rows enter one after another. */
+.page .row { animation: enter-up 300ms var(--ease-standard) both; }
+.page .row:nth-child(2) { animation-delay: 40ms; }
+.page .row:nth-child(3) { animation-delay: 80ms; }
+.page .row:nth-child(4) { animation-delay: 120ms; }
+.page .row:nth-child(5) { animation-delay: 160ms; }
+.page .row:nth-child(n + 6) { animation-delay: 200ms; }
+.hero + .play { animation: enter-up 320ms var(--ease-standard) 60ms both; }
+
+/* Pressing a button sinks it slightly. */
+.sl-btn:active:not(:disabled), .btn:active:not(:disabled), .nav__item:active { transform: translateY(1px) scale(0.985); }
+.sl-btn--accent:active:not(:disabled) { transform: translateY(1px) scale(0.985); }
+.nav__item { transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), transform 120ms var(--ease-out); }
+
+/* With animations turned off in the OS: fades only, and decorative spinners stop. */
+@media (prefers-reduced-motion: reduce) {
+  .page, .stage, .status, .news, .page .row, .hero + .play, .login__card {
+    animation-name: enter-fade;
+    animation-delay: 0ms !important;
+  }
+  .sl-tag__dot--live { animation-play-state: paused !important; }
+  .sl-btn:active, .btn:active, .nav__item:active, .sl-btn--accent:hover { transform: none !important; }
+}
+
+/* Errors: the player-facing sentence, with the technical detail collapsed. */
+.err__more {
+  display: block; background: none; border: 0; padding: 0; margin: 6px 0 0; cursor: pointer;
+  font: inherit; color: var(--text-muted); text-decoration: underline; text-underline-offset: 2px;
+}
+.err__more:hover { color: var(--gold); }
+.err__detail {
+  margin: 8px 0 0; padding: 10px 12px; max-height: 120px; overflow: auto; text-align: left;
+  font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-all;
+  color: var(--text-muted); background: color-mix(in oklab, var(--bg) 85%, #000 15%); border: 0.5px solid var(--rule);
+  user-select: text; animation: enter-fade var(--dur-base) var(--ease-out) both;
+}
+
+.row__tag {
+  margin-left: 10px; padding: 2px 8px; border: 0.5px solid var(--rule); border-radius: 999px;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-muted); vertical-align: 2px; animation: enter-fade var(--dur-base) var(--ease-out) both;
+}
+.login__start { margin-top: 26px; }
+
+/* ── brand ─────────────────────────────────────────────────────────────────
+   The Stein Client logo (white, blackletter) and the SL monogram: the same images the Stein Loader uses. */
+.brand-logo { display: block; width: auto; user-select: none; -webkit-user-drag: none; }
+.brand-sl { display: inline-block; vertical-align: -3px; margin-right: 8px; pointer-events: none; user-select: none; }
+.titlebar__title { display: inline-flex; align-items: center; }
+
+.wordmark { gap: 12px; margin: 0 4px 32px; }
+.wordmark .brand-sl { margin: 0; vertical-align: 0; }
+.wordmark__name { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; }
+.wordmark__sub { margin-top: 5px; letter-spacing: 0.3em; }
+.hero__logo { flex: none; margin-right: 8px; filter: drop-shadow(0 0 28px color-mix(in oklab, var(--accent) 35%, transparent)); }
+.hero .hero__lead { font-size: 20px; margin-top: 8px; text-wrap: balance; max-width: 440px; }
+.login__logo { margin: 4px auto 0; }
+.login .stage > .login__lead { margin-top: 22px; }
+
+/* ── crash ─────────────────────────────────────────────────────────────────
+   The game crashed: the launcher comes back and shows what to do, in place of the news card. */
+.crash {
+  margin-top: 34px; padding: 20px 22px; max-width: 640px;
+  border-color: color-mix(in oklab, #e0708a 45%, var(--rule));
+  background: color-mix(in oklab, #e0708a 5%, var(--bg));
+  animation: enter-card 380ms var(--ease-standard) both;
+}
+.crash__head { display: flex; gap: 16px; align-items: flex-start; }
+.crash__head > svg { color: #e0708a; flex: none; margin-top: 2px; }
+.crash__text { flex: 1; min-width: 0; }
+.crash__title { font-family: var(--font-display); font-size: 19px; }
+.crash__body { color: var(--text-muted); font-size: 15px; line-height: 1.45; margin-top: 4px; }
+.crash__code { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); margin-top: 8px; }
+.crash__close {
+  flex: none; background: none; border: 0; padding: 4px; cursor: pointer; color: var(--text-faint);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.crash__close:hover { color: var(--ink); }
+.crash .actions { margin-top: 18px; padding-left: 38px; }
+
+/* Offline account: the nickname on a single line, with the buttons beside it. */
+.offline-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; animation: enter-up var(--dur-base) var(--ease-standard) both; }
+.offline-form .input { width: 220px; font-family: var(--font-mono); letter-spacing: 0.04em; }
+.offline-form .status { flex-basis: 100%; }
+.section > .note { margin-top: 14px; }
+
+/* Updates the next Play will install: what changes, from which version to which. */
+.updates { margin-top: 30px; padding: 18px 22px; max-width: 640px; animation: enter-card 380ms var(--ease-standard) both; }
+.updates__head { display: flex; gap: 14px; align-items: flex-start; }
+.updates__head > svg { color: var(--accent); flex: none; margin-top: 3px; }
+.updates__title { font-family: var(--font-display); font-size: 18px; }
+.updates__text { color: var(--text-muted); font-size: 14px; margin-top: 2px; }
+.updates__list { list-style: none; margin: 14px 0 0; padding: 0 0 0 32px; display: grid; gap: 6px; }
+.updates__list li { display: flex; justify-content: space-between; gap: 16px; font-size: 15px; border-top: 0.5px solid var(--rule); padding-top: 6px; }
+.updates__list li:first-child { border-top: 0; padding-top: 0; }
+.updates__change { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--text-muted); align-self: center; }
+.row__tag--update { border-color: color-mix(in oklab, var(--accent) 55%, var(--rule)); color: var(--ink); }
+
+/* ── third-party mods ──────────────────────────────────────────────────── */
+.notice { display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; margin: 0 0 16px; max-width: 640px; animation: enter-card 380ms var(--ease-standard) both; }
+.page > .notice, .play ~ .notice { margin-top: 30px; }
+.notice > svg { color: var(--accent); flex: none; margin-top: 2px; }
+.notice__text { flex: 1; color: var(--text-muted); font-size: 15px; line-height: 1.45; }
+.source { margin-bottom: 22px; }
+.source__head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.source__id { flex: 1; min-width: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.source__name { font-family: var(--font-display); font-size: 19px; }
+.source__author { color: var(--text-faint); font-size: 13px; }
+.source__host { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--text-faint); }
+.source-form { margin-top: 8px; animation: enter-up var(--dur-base) var(--ease-standard) both; }
+.source-form__text { width: 100%; min-height: 72px; resize: vertical; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; }
+.warning { margin-top: 8px; }
+.warning .crash__head > svg { color: var(--gold); }
+.warning__kv { margin-top: 14px; grid-template-columns: 110px 1fr; }

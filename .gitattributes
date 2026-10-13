@@ -1,0 +1,5 @@
+# LF in every checkout, Windows too: rustfmt (rustfmt.toml) writes LF, and the shell scripts need it.
+* text=auto eol=lf
+*.sh text eol=lf
+*.png binary
+*.ico binary

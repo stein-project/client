@@ -1,0 +1,51 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#
+# Copyright (c) 2026 Breno Xavier
+#
+# The Contributor License Agreement (https://github.com/Stein-Project/.github/blob/main/CLA.md): on every pull
+# request, the bot checks that each commit author has signed it and, if not, asks them to sign with a comment. The
+# signatures are kept in signatures/cla.json on the cla-signatures branch of this repository, written with the
+# workflow's own token. The maintainer and bots do not need to sign.
+#
+# Runs on pull_request_target, so it always uses this workflow from the default branch and never checks out or runs
+# the pull request's code.
+name: cla
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_target:
+    types: [opened, closed, synchronize]
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+  statuses: write
+
+jobs:
+  cla:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'pull_request_target' ||
+      (github.event.issue.pull_request &&
+       (github.event.comment.body == 'recheck' ||
+        github.event.comment.body == 'I have read the Stein CLA and I sign it'))
+    steps:
+      - uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          path-to-signatures: signatures/cla.json
+          path-to-document: https://github.com/Stein-Project/.github/blob/main/CLA.md
+          branch: cla-signatures
+          allowlist: brenoxavier,x4vieer,*[bot]
+          lock-pullrequest-aftermerge: false
+          custom-notsigned-prcomment: >-
+            Thanks for the pull request! Before it can be merged, each author of its commits needs to sign the
+            [Stein Contributor License Agreement](https://github.com/Stein-Project/.github/blob/main/CLA.md)
+            (once per repository). To sign, reply to this pull request with the exact sentence below.
+          custom-pr-sign-comment: I have read the Stein CLA and I sign it
+          custom-allsigned-prcomment: Every author of this pull request has signed the Stein CLA. Thank you!

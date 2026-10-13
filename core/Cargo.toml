@@ -1,0 +1,24 @@
+[package]
+name = "stein-core"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+description = "The Stein Client core: folders, verified downloads, Mojang's 1.8.9, the Stein Loader release and game launch."
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+futures-util.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+hex.workspace = true
+zip.workspace = true
+stein-client-auth = { path = "../auth" }
+
+[[bin]]
+name = "stein-cli"
+path = "src/bin/stein-cli.rs"

@@ -1,0 +1,51 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#
+# Copyright (c) 2026 Breno Xavier
+#
+# Builds the Stein Client (the React + Vite interface and the Rust + Tauri launcher) and runs the Rust tests, on
+# Windows: the launcher is a Windows program, and Tauri builds for the system it runs on.
+name: build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+      - name: Formatting
+        run: |
+          rustup component add rustfmt
+          cargo fmt --all --check
+      # The interface goes inside the executable: it is built first.
+      - name: Interface
+        working-directory: ui
+        run: npm ci --no-audit --no-fund && npm run build
+      - name: Build and test
+        run: cargo test --workspace --locked

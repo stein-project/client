@@ -1,0 +1,23 @@
+[package]
+name = "stein-client"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+description = "Stein Client: the launcher for original Minecraft 1.8.9 with the Stein Loader."
+
+[[bin]]
+name = "SteinClient"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+tauri.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+stein-core = { path = "../core" }
+open = "5"

@@ -1,0 +1,10 @@
+# Build output
+target/
+build/
+ui/node_modules/
+ui/dist/
+*/gen/
+
+# IDEs
+.idea/
+.vscode/

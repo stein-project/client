@@ -1,0 +1,24 @@
+Stein Client
+Copyright (c) 2026 Breno Xavier (https://github.com/brenoxavier)
+
+Part of Stein (https://github.com/Stein-Project). Licensed under the Mozilla Public License 2.0 (see LICENSE).
+
+The Stein name and logo are trademarks of Breno Xavier and are not covered by the licence: see
+https://github.com/Stein-Project/.github/blob/main/TRADEMARK.md
+
+NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.
+Minecraft is a trademark of Mojang AB. No Minecraft code or assets are distributed by this project:
+the game is patched at runtime, on the player's machine, from the player's own copy.
+
+-------------------------------------------------------------------------------
+Third-party software
+-------------------------------------------------------------------------------
+The Rust crates (Cargo.lock) and npm packages (ui/package-lock.json) keep their own licences. The
+full texts for everything inside SteinClient.exe are in THIRD-PARTY-NOTICES.txt, which is also
+published with every release; tools/notices.sh regenerates it.
+
+Fonts (Cinzel, EB Garamond, JetBrains Mono, through Fontsource) - SIL Open Font License 1.1.
+
+The Microsoft account sign-in (auth/) follows the flow of prismarine-auth (PrismarineJS, MIT
+licence) and azalea-auth (MIT licence), through the Steinflayer project. The Live ID client id it
+uses is the public one those projects use.

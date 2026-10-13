@@ -1,0 +1,39 @@
+# Stein Client: the launcher (SteinClient.exe), in Rust with Tauri 2.
+#
+#   core/      stein-core: folders, checked downloads, Minecraft 1.8.9 from Mojang, the Stein Loader release
+#              (installer and Java 25), starting the game, and the launcher's own updates
+#   auth/      stein-client-auth: Microsoft account (device code) and the system credential vault
+#   launcher/  SteinClient.exe: accounts, play, mods; updates itself when it opens
+#   ui/        the interface (React + Vite), with the Stein design system
+[workspace]
+resolver = "2"
+members = ["core", "auth", "launcher"]
+
+[workspace.package]
+edition = "2021"
+version = "0.3.0"
+license = "MPL-2.0"
+
+[workspace.dependencies]
+anyhow = "1"
+thiserror = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "fs", "process", "sync"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+futures-util = "0.3"
+sha1 = "0.10"
+sha2 = "0.10"
+hex = "0.4"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+tracing = "0.1"
+tauri = { version = "2", features = ["custom-protocol"] }
+tauri-build = { version = "2", features = [] }
+
+[profile.release]
+# A regular build, not a minimal one: a small executable without symbols (opt-level "s", strip, panic abort) looked
+# like a packed file to machine-learning antivirus engines: 5 VirusTotal detections against 3 for this profile,
+# measured on 2026-09-30. It costs size (14 MB instead of 6) and nothing else.
+opt-level = 3
+lto = "thin"
+strip = "debuginfo"

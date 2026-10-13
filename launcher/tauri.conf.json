@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Stein Client",
+  "mainBinaryName": "SteinClient",
+  "identifier": "dev.xavier.stein.client",
+  "build": {
+    "frontendDist": "../ui/dist",
+    "devUrl": "http://localhost:1420"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Stein Client",
+        "url": "index.html",
+        "width": 1040,
+        "height": 640,
+        "minWidth": 900,
+        "minHeight": 560,
+        "resizable": true,
+        "decorations": false,
+        "center": true,
+        "backgroundColor": "#0a0614"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: https://mc-heads.net; style-src 'self' 'unsafe-inline'; font-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": false,
+    "publisher": "Stein Labs",
+    "copyright": "Copyright (c) 2026 X4vieer",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"]
+  }
+}

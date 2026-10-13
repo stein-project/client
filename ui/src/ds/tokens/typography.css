@@ -1,0 +1,34 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2026 Breno Xavier
+ */
+
+/* tokens/typography.css — font families and the text scale.
+
+   Three families, each with one job:
+     · Cinzel         — display: page titles, names, big numbers.
+     · EB Garamond    — body text; italic for leads and quiet notes.
+     · JetBrains Mono — labels, navigation, versions and status lines: small, uppercase, widely tracked. */
+
+:root {
+  /* ── families ────────────────────────────────────────────────────────── */
+  --font-display: 'Cinzel', 'Times New Roman', serif;
+  --font-body:    'EB Garamond', 'Georgia', serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  /* ── body ────────────────────────────────────────────────────────────── */
+  --text-body:    16px;
+
+  /* ── mono labels ─────────────────────────────────────────────────────── */
+  --text-label:   11px;   /* default mono label    */
+  --text-micro:   10px;   /* tags                  */
+  --tracking-label: 0.08em;
+  --tracking-wide:  0.16em;
+
+  /* ── weights & leading ───────────────────────────────────────────────── */
+  --weight-regular: 400;
+  --leading-body:   1.55;
+}

@@ -1,0 +1,34 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2026 Breno Xavier
+ */
+
+/* tokens/spacing.css — spacing, hairlines, radii and glows.
+
+   Corners are square except the fully rounded pill used on buttons and tags. Surfaces are flat and separated by
+   0.5px hairline rules; the only shadows are the violet glows around the main Play button. */
+
+:root {
+  /* ── spacing scale ───────────────────────────────────────────────────── */
+  --space-2: 8px;
+  --space-3: 14px;
+
+  /* ── hairline ────────────────────────────────────────────────────────── */
+  --hairline: 0.5px;
+
+  /* ── radii ───────────────────────────────────────────────────────────── */
+  --radius-pill: 999px;   /* buttons, tags, toggles */
+
+  /* ── glows (violet, never grey drop shadows) ─────────────────────────── */
+  --glow-cta:
+    0 0 0 1px color-mix(in oklab, var(--accent) 50%, transparent),
+    0 14px 50px color-mix(in oklab, var(--accent) 45%, transparent),
+    0 1px 0 rgba(255,255,255,.2) inset;
+  --glow-cta-hover:
+    0 0 0 1px color-mix(in oklab, var(--accent) 60%, transparent),
+    0 22px 70px color-mix(in oklab, var(--accent) 65%, transparent),
+    0 1px 0 rgba(255,255,255,.24) inset;
+}

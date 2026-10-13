@@ -1,0 +1,17 @@
+[package]
+name = "stein-client-auth"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+description = "Stein Client Microsoft account: device code -> Xbox Live -> XSTS -> Minecraft, with the refresh token in the system vault. Derived from Steinflayer's stein-auth."
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+md-5 = "0.10"
+keyring = { version = "3", features = ["windows-native", "apple-native", "linux-native"] }

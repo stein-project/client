@@ -1,0 +1,148 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#
+# Copyright (c) 2026 Breno Xavier
+#
+# Releases the Stein Client (SteinClient.exe, update.json and THIRD-PARTY-NOTICES.txt) to the public distribution
+# repository Stein-Project/stein-client.
+#
+#   git tag v0.2.7 && git push origin v0.2.7      the tag must be v<version of Cargo.toml ([workspace.package])>
+#
+# Run by hand (Actions > release > Run workflow) it is a dry run: it builds, checks the changelog, keeps the
+# files as a workflow artifact and prints the notes, publishing nothing.
+#
+# On a tag:
+#   1. the changelog is required before anything is built: changelog/<version>.en_US.md (.pt_BR.md optional);
+#   2. tools/client.sh builds the interface and the launcher; update.json says the version, the sha256 of the
+#      executable and where to download it ("base": the release on Stein-Project/stein-client);
+#   3. release v<version> on Stein-Project/stein-client with SteinClient.exe, update.json and THIRD-PARTY-NOTICES.txt,
+#      and README.md on its main branch. Every Stein Client after 0.2.9 reads releases/latest/download/update.json to update itself. Never
+#      publish a client.json again: launchers up to 0.2.9 read that name and must stay on 0.2.9;
+# No test versions: the launcher has no test channel. Running the same tag again publishes nothing twice.
+#
+# Settings of this repository (Settings > Secrets and variables > Actions):
+#   secrets    DIST_TOKEN (Contents: read and write on Stein-Project/stein-client)
+#   variables  DIST_OWNER (optional, default Stein-Project)
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    # The launcher is a Windows program, and Tauri builds for the system it runs on.
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      DIST_OWNER: ${{ vars.DIST_OWNER || 'Stein-Project' }}
+      DRY_RUN: ${{ github.event_name != 'push' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # First on purpose: a release without its notes stops in seconds, not after the build.
+      - name: Version and changelog
+        id: version
+        run: |
+          v="$(grep -m1 -oE '^version = "[^"]+"' Cargo.toml | grep -oE '[0-9][^"]*')"
+          if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_REF_NAME" != "v$v" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match the version in Cargo.toml ($v)"; exit 1
+          fi
+          bash .github/scripts/changelog.sh check changelog "$v"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Build
+        env:
+          RELEASE_OWNER: ${{ env.DIST_OWNER }}
+        run: bash tools/client.sh
+
+      - name: Files and notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir dist
+          cp build/client/SteinClient.exe build/client/update.json THIRD-PARTY-NOTICES.txt dist/
+          # Launchers up to 0.2.9 must not find a client.json in a newer release.
+          test ! -e dist/client.json
+          ch=changelog/$VERSION.en_US.md
+          cl() { bash .github/scripts/changelog.sh "$1" "$ch"; }
+          {
+            echo "## $(cl title)"
+            echo
+            cl summary
+            echo
+            cl body
+            echo
+            echo "**Install:** download \`SteinClient.exe\`, keep it wherever you like and run it. Sign in with the Microsoft"
+            echo "account that owns Minecraft: Java Edition and click **Play**: it downloads Minecraft 1.8.9 from Mojang, the"
+            echo "Stein Loader, Java and the official mods into \`%APPDATA%\\.steinclient\`. Every time it opens, it checks for a"
+            echo "new version of itself and updates before starting."
+            echo
+            echo "Original Minecraft only: the game files come from Mojang, straight to your computer, and the game only starts"
+            echo "once an account that owns it is in the launcher. You only need \`SteinClient.exe\`: \`update.json\` is what the"
+            echo "launcher reads to update itself, and \`THIRD-PARTY-NOTICES.txt\` lists the licences of the open source"
+            echo "software inside it."
+            echo
+            echo "**SHA-256**"
+            for f in dist/*; do echo "\`$(basename "$f")\` \`$(sha256sum "$f" | cut -d' ' -f1)\`"; done
+          } > notes.md
+          mkdir page && cp README.md page/
+          ls -la dist
+          echo "::group::release notes"; cat notes.md; echo "::endgroup::"
+
+      - name: Keep the files (dry run)
+        if: env.DRY_RUN == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: stein-client-${{ steps.version.outputs.version }}
+          path: |
+            dist/
+            notes.md
+          retention-days: 14
+
+      - name: What it would publish (dry run)
+        if: env.DRY_RUN == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "release v$VERSION -> $DIST_OWNER/stein-client:"
+          ls dist; cat dist/update.json
+          echo "(dry run: nothing was published)"
+
+      - name: Publish (${{ env.DIST_OWNER }}/stein-client)
+        if: env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.DIST_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          . .github/scripts/dist.sh
+          dist_need_token DIST_TOKEN
+          repo="$DIST_OWNER/stein-client"
+          # The page first: a release needs a commit to hang its tag on.
+          dist_push_dir "$repo" main page "Stein Client $VERSION" "$(git log -1 --format=%an)" "$(git log -1 --format=%ae)"
+          dist_release "$repo" "v$VERSION" "Stein Client $VERSION" notes.md 0 dist/*

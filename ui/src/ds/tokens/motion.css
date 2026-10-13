@@ -1,0 +1,24 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2026 Breno Xavier
+ */
+
+/* tokens/motion.css — durations and easing curves.
+
+   Nothing bounces: hovers and entrances are short eased fades and small lifts (200–350ms). Looping animations
+   pause when the OS asks for reduced motion (see app.css). */
+
+:root {
+  /* ── durations ───────────────────────────────────────────────────────── */
+  --dur-fast:   200ms;
+  --dur-base:   250ms;
+  --dur-slow:   350ms;
+
+  /* ── easing ──────────────────────────────────────────────────────────── */
+  --ease-standard: cubic-bezier(.3, .7, .4, 1);
+  --ease-out:      ease-out;
+  --ease-in-out:   ease-in-out;
+}

@@ -1,0 +1,10 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#
+# Copyright (c) 2026 Breno Xavier
+#
+# The Rust style of this repository: `cargo fmt --all` (the CI runs `cargo fmt --all --check`). Lines up to 120
+# columns, and short constructs (struct literals, calls, chains) kept on one line while they fit.
+max_width = 120
+use_small_heuristics = "Max"
