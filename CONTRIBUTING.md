@@ -36,9 +36,13 @@ command line, which takes a separate folder: `cargo run -p stein-core --bin stei
 
 Write `changelog/<version>.en_US.md` (and optionally `.pt_BR.md`), bump `version` in `Cargo.toml`
 (`[workspace.package]`), then push a `v<version>` tag. `.github/workflows/release.yml` builds `SteinClient.exe` and
-publishes it with `update.json` and `THIRD-PARTY-NOTICES.txt` to the public distribution repository
-[Stein-Project/stein-client](https://github.com/Stein-Project/stein-client), where every launcher looks for updates.
-Running the workflow by hand is a dry run that publishes nothing.
+publishes it with `update.json` and `THIRD-PARTY-NOTICES.txt` as a release of this repository, where every launcher
+looks for updates. Running the workflow by hand is a dry run that publishes nothing.
+
+Up to 0.3.0 the releases went to [Stein-Project/stein-client](https://github.com/Stein-Project/stein-client), which is
+frozen. Launchers 0.3.0 still read its `update.json`; when the first release here came out, the `update.json` of its
+v0.3.0 release was replaced by the new one (whose `base` points here), so they update to it and read this repository
+from then on. Leave it as it is.
 
 When `Cargo.lock` or `ui/package-lock.json` changes, regenerate `THIRD-PARTY-NOTICES.txt` (the licences of everything
 inside `SteinClient.exe`, published with each release) and commit it:

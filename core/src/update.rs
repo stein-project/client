@@ -30,7 +30,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::net::{self, Hash};
 
-const MANIFEST_URL: &str = "https://github.com/Stein-Project/stein-client/releases/latest/download/update.json";
+/// The releases of this repository. 0.3.0 read Stein-Project/stein-client, frozen since: the update.json of its last
+/// release points at the first release here, so those launchers come over in one update.
+const MANIFEST_URL: &str = "https://github.com/Stein-Project/client/releases/latest/download/update.json";
 
 /// What the Stein Client release publishes.
 #[derive(Debug, Clone, Serialize, Deserialize)]

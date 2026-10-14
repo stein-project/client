@@ -17,15 +17,14 @@
 # Needs Node (npm) and Rust (cargo). The interface is embedded in the executable.
 #
 #   tools/client.sh
-#   RELEASE_OWNER=Stein-Project tools/client.sh    owner of the distribution repository (the "base" in update.json)
+#   RELEASE_REPO=Stein-Project/client tools/client.sh    repository of the release (the "base" in update.json)
 #
-# "base" in update.json is the absolute URL of this version's release on the distribution repository
-# (https://github.com/<owner>/stein-client/releases/download/v<version>); the launcher downloads the executable from
-# there, and only over https.
+# "base" in update.json is the absolute URL of this version's release (https://github.com/<repo>/releases/download/
+# v<version>); the launcher downloads the executable from there, and only over https.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
 OUT=build/client
-OWNER="${RELEASE_OWNER:-Stein-Project}"
+REPO="${RELEASE_REPO:-Stein-Project/client}"
 VERSION="$(grep -m1 -oE '^version = "[^"]+"' Cargo.toml | grep -oE '[0-9][^"]*')"
 echo "== Stein Client $VERSION"
 
@@ -43,7 +42,7 @@ sha() { sha256sum "$1" | cut -d' ' -f1; }
 cat > "$OUT/update.json" <<JSON
 {
   "version": "$VERSION",
-  "base": "https://github.com/$OWNER/stein-client/releases/download/v$VERSION",
+  "base": "https://github.com/$REPO/releases/download/v$VERSION",
   "files": {
     "$os": {
       "SteinClient$ext": "$(sha "$OUT/SteinClient$ext")"
