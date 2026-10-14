@@ -4,8 +4,8 @@
 #
 # Copyright (c) 2026 Breno Xavier
 #
-# Releases the Stein Client (SteinClient.exe, update.json and THIRD-PARTY-NOTICES.txt) to the public distribution
-# repository Stein-Project/stein-client.
+# Releases the Stein Client (SteinClient.exe, update.json and THIRD-PARTY-NOTICES.txt) as a release of this
+# repository.
 #
 #   git tag v0.2.7 && git push origin v0.2.7      the tag must be v<version of Cargo.toml ([workspace.package])>
 #
@@ -15,15 +15,14 @@
 # On a tag:
 #   1. the changelog is required before anything is built: changelog/<version>.en_US.md (.pt_BR.md optional);
 #   2. tools/client.sh builds the interface and the launcher; update.json says the version, the sha256 of the
-#      executable and where to download it ("base": the release on Stein-Project/stein-client);
-#   3. release v<version> on Stein-Project/stein-client with SteinClient.exe, update.json and THIRD-PARTY-NOTICES.txt,
-#      and README.md on its main branch. Every Stein Client after 0.2.9 reads releases/latest/download/update.json to update itself. Never
-#      publish a client.json again: launchers up to 0.2.9 read that name and must stay on 0.2.9;
+#      executable and where to download it ("base": this version's release here);
+#   3. release v<version> here with SteinClient.exe, update.json and THIRD-PARTY-NOTICES.txt. Every Stein Client after
+#      0.3.0 reads releases/latest/download/update.json here to update itself (0.3.0 reads the frozen
+#      Stein-Project/stein-client, whose last update.json points here). Never publish a client.json again: launchers
+#      up to 0.2.9 read that name and must stay on 0.2.9;
 # No test versions: the launcher has no test channel. Running the same tag again publishes nothing twice.
 #
-# Settings of this repository (Settings > Secrets and variables > Actions):
-#   secrets    DIST_TOKEN (Contents: read and write on Stein-Project/stein-client)
-#   variables  DIST_OWNER (optional, default Stein-Project)
+# Nothing to set up: the release goes to this repository with the workflow's own token.
 name: release
 
 on:
@@ -32,7 +31,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 defaults:
   run:
@@ -44,7 +43,6 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     env:
-      DIST_OWNER: ${{ vars.DIST_OWNER || 'Stein-Project' }}
       DRY_RUN: ${{ github.event_name != 'push' }}
     steps:
       - uses: actions/checkout@v4
@@ -76,7 +74,7 @@ jobs:
 
       - name: Build
         env:
-          RELEASE_OWNER: ${{ env.DIST_OWNER }}
+          RELEASE_REPO: ${{ github.repository }}
         run: bash tools/client.sh
 
       - name: Files and notes
@@ -109,7 +107,6 @@ jobs:
             echo "**SHA-256**"
             for f in dist/*; do echo "\`$(basename "$f")\` \`$(sha256sum "$f" | cut -d' ' -f1)\`"; done
           } > notes.md
-          mkdir page && cp README.md page/
           ls -la dist
           echo "::group::release notes"; cat notes.md; echo "::endgroup::"
 
@@ -129,20 +126,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          echo "release v$VERSION -> $DIST_OWNER/stein-client:"
+          echo "release v$VERSION -> $GITHUB_REPOSITORY:"
           ls dist; cat dist/update.json
           echo "(dry run: nothing was published)"
 
-      - name: Publish (${{ env.DIST_OWNER }}/stein-client)
+      - name: Publish
         if: env.DRY_RUN != 'true'
         env:
-          GH_TOKEN: ${{ secrets.DIST_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           . .github/scripts/dist.sh
-          dist_need_token DIST_TOKEN
-          repo="$DIST_OWNER/stein-client"
-          # The page first: a release needs a commit to hang its tag on.
-          dist_push_dir "$repo" main page "Stein Client $VERSION" "$(git log -1 --format=%an)" "$(git log -1 --format=%ae)"
-          dist_release "$repo" "v$VERSION" "Stein Client $VERSION" notes.md 0 dist/*
+          dist_release "$GITHUB_REPOSITORY" "v$VERSION" "Stein Client $VERSION" notes.md 0 dist/*

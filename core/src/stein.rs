@@ -12,7 +12,7 @@
 //! it.
 //!
 //! Where each piece comes from:
-//! - `stein.json` (the Stein Loader's public repository): the latest version and the `sources` list, the official mod
+//! - `stein.json` (a file of the installer's latest release, Stein-Project/installer): the latest version and the `sources` list, the official mod
 //!   indexes;
 //! - each mod's index (`steinmods.json`, [`crate::sources`]): version, file and sha256, for official mods and for
 //!   third-party ones the player added;
@@ -38,8 +38,9 @@ use crate::paths::Root;
 use crate::progress::{Progress, Report};
 use crate::sources;
 
-const INDEX_URL: &str = "https://raw.githubusercontent.com/Stein-Project/stein-loader/main/stein.json";
-const RELEASES: &str = "https://github.com/Stein-Project/stein-loader/releases/download";
+/// Up to 0.3.0 both came from Stein-Project/stein-loader, frozen at Stein Loader 0.1.33.
+const INDEX_URL: &str = "https://github.com/Stein-Project/installer/releases/latest/download/stein.json";
+const RELEASES: &str = "https://github.com/Stein-Project/installer/releases/download";
 /// The version the installer creates in the folder.
 pub const VERSION_ID: &str = "1.8.9-SteinLoader";
 const INSTALL_MANIFEST: &str = "stein-loader-install.json";
