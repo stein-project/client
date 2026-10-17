@@ -30,6 +30,14 @@ The Stein Client sends nothing about you anywhere. It talks only to the services
 
 No analytics, no telemetry, no ads.
 
+## Portable install
+
+Put an empty file named `portable` next to `SteinClient.exe` and everything (game, Java, mods, worlds, settings) stays
+in that folder instead of `%APPDATA%\.steinclient`. To keep it in a subfolder, write the path in the file, relative to
+the executable's folder: `data\.steinclient` (an absolute path also works, but breaks when a USB stick gets another
+drive letter). Accounts stay in `%APPDATA%\.steinauth` and the Credential Manager, so
+the folder does not carry them to another computer.
+
 ## Uninstalling
 
 Delete `SteinClient.exe` and the folder `%APPDATA%\.steinclient` (worlds, settings and mods live there: keep a copy of
