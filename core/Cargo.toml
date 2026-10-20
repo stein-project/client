@@ -16,6 +16,8 @@ futures-util.workspace = true
 sha1.workspace = true
 sha2.workspace = true
 hex.workspace = true
+base64.workspace = true
+ed25519-dalek.workspace = true
 zip.workspace = true
 stein-client-auth = { path = "../auth" }
 

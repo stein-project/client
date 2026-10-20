@@ -12,10 +12,11 @@
 //! it.
 //!
 //! Where each piece comes from:
-//! - `stein.json` (a file of the installer's latest release, Stein-Project/installer): the latest version and the `sources` list, the official mod
-//!   indexes;
-//! - each mod's index (`steinmods.json`, [`crate::sources`]): version, file and sha256, for official mods and for
-//!   third-party ones the player added;
+//! - `stein.json` of the Stein registry ([`crate::registry`], signed): the latest version, the links, the official
+//!   mods enabled by default and the `sources` list, the official mod indexes (`mods/<id>.json` of the registry);
+//! - each mod's index (`steinmods.json`, [`crate::sources`]): version, file and sha256, for official mods (from the
+//!   registry, signed) and for third-party ones the player added;
+//! - `revoked.json` of the registry: mods that must not be installed (left out of the index);
 //! - the `v<version>` release: the installer, the Java 25 runtime for each OS and `SHA256SUMS.txt`, which verifies
 //!   both.
 //!
@@ -36,10 +37,11 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use crate::net::{self, Hash};
 use crate::paths::Root;
 use crate::progress::{Progress, Report};
-use crate::sources;
+use crate::{registry, sources};
 
-/// Up to 0.3.0 both came from Stein-Project/stein-loader, frozen at Stein Loader 0.1.33.
-const INDEX_URL: &str = "https://github.com/Stein-Project/installer/releases/latest/download/stein.json";
+/// The registry file with the index. Up to 0.3.2 it was `stein.json` of the installer's latest release (and up to
+/// 0.3.0 of Stein-Project/stein-loader, frozen at Stein Loader 0.1.33).
+const INDEX_FILE: &str = "stein.json";
 const RELEASES: &str = "https://github.com/Stein-Project/installer/releases/download";
 /// The version the installer creates in the folder.
 pub const VERSION_ID: &str = "1.8.9-SteinLoader";
@@ -85,6 +87,16 @@ pub struct News {
     pub url: String,
 }
 
+/// Addresses the project publishes (`links` in `stein.json`): the Discord invite and the player-head image service
+/// (`{uuid}` and `{size}` are filled in).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Links {
+    #[serde(default)]
+    pub discord: String,
+    #[serde(default)]
+    pub heads: String,
+}
+
 /// The published index.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Index {
@@ -92,6 +104,11 @@ pub struct Index {
     pub mods: Vec<IndexMod>,
     #[serde(default)]
     pub news: Option<News>,
+    #[serde(default)]
+    pub links: Links,
+    /// The official mods enabled for someone who never chose (`defaultMods`); empty in an older index.
+    #[serde(default)]
+    pub default_mods: Vec<String>,
 }
 
 impl Index {
@@ -101,10 +118,16 @@ impl Index {
     }
 }
 
-/// The published index. Mods come from each mod's own index: the official ones (`sources` in `stein.json`) and the third-party
-/// ones; a third-party mod with the id of an official one is left out.
+/// The published index. Mods come from each mod's own index: the official ones (`sources` in `stein.json`) and the
+/// third-party ones; a third-party mod with the id of an official one is left out, and so is a revoked one. The
+/// registry's other files (launch, compat, revoked, migrations) are refreshed along with it.
 pub async fn index(http: &reqwest::Client, root: &Root) -> Result<Index> {
-    let raw: serde_json::Value = serde_json::from_slice(&net::fetch(http, INDEX_URL).await?)?;
+    let (raw, _) = futures_util::future::join(
+        registry::load_json(http, root, INDEX_FILE),
+        registry::refresh_auxiliary(http, root),
+    )
+    .await;
+    let raw = raw?;
     let mut index = parse_index(&raw)?;
     let previous = cached_index(root).map(|i| i.mods).unwrap_or_default();
     let official: Vec<String> = raw["sources"]
@@ -112,14 +135,27 @@ pub async fn index(http: &reqwest::Client, root: &Root) -> Result<Index> {
         .map(|a| a.iter().filter_map(|u| u.as_str()).filter(|u| sources::allowed_url(u)).map(str::to_string).collect())
         .unwrap_or_default();
     if !official.is_empty() {
-        index.mods = sources::gather(http, &official, false, &previous).await;
+        index.mods = sources::gather(http, root, &official, false, &previous).await;
     }
     let third: Vec<String> = sources::third_party(root).into_iter().map(|s| s.url).collect();
-    for m in sources::gather(http, &third, true, &previous).await {
+    for m in sources::gather(http, root, &third, true, &previous).await {
         if !index.mods.iter().any(|o| o.mod_id == m.mod_id || o.id == m.id) {
             index.mods.push(m);
         }
     }
+    // Revoked (malicious or broken): never downloaded. A copy already in the folder is the player's and stays; with
+    // the mod out of the index the launcher simply stops touching it.
+    index.mods.retain(|m| match registry::revoked(root, &m.sha256) {
+        Some(why) => {
+            registry::note(
+                root,
+                "launcher.log",
+                &format!("{} {} is revoked ({why}): not installed", m.name, m.version),
+            );
+            false
+        }
+        None => true,
+    });
     Ok(index)
 }
 
@@ -137,7 +173,19 @@ fn parse_index(raw: &serde_json::Value) -> Result<Index> {
         text: lang(&n["text"]),
         url: n["url"].as_str().unwrap_or("").to_string(),
     });
-    Ok(Index { loader, mods, news })
+    let link = |k: &str| {
+        raw["links"][k]
+            .as_str()
+            .or(if k == "discord" { raw["discord"].as_str() } else { None })
+            .unwrap_or("")
+            .to_string()
+    };
+    let links = Links { discord: link("discord"), heads: link("heads") };
+    let default_mods = raw["defaultMods"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|m| m.as_str()).map(str::to_string).collect())
+        .unwrap_or_default();
+    Ok(Index { loader, mods, news, links, default_mods })
 }
 
 /// The name of this OS's Java 25 asset in the release.
@@ -483,7 +531,7 @@ async fn run_installer(root: &Root, java: &Path, jar: &Path, report: &Report) ->
         .arg("--mods")
         .arg("keep")
         .arg("--ram")
-        .arg(crate::launch::GAME_RAM_GB.to_string())
+        .arg(crate::launch::ram_gb(root).to_string())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     #[cfg(windows)]
@@ -623,6 +671,22 @@ mod tests {
         assert_eq!(i.loader_tag(), "v0.1.27");
         assert_eq!(i.mods.len(), 2);
         assert_eq!(i.mods[0].version, "0.1.17");
+    }
+
+    #[test]
+    fn links_and_default_mods() {
+        let raw = serde_json::json!({
+            "schema": 1, "discord": "https://discord.gg/old",
+            "links": {"heads": "https://heads.example/{uuid}/{size}"},
+            "latest": {"version": "0.1.35"}, "defaultMods": ["hud", "replay"]
+        });
+        let i = parse_index(&raw).unwrap();
+        assert_eq!(i.links.discord, "https://discord.gg/old"); // the old top-level key still counts
+        assert_eq!(i.links.heads, "https://heads.example/{uuid}/{size}");
+        assert_eq!(i.default_mods, vec!["hud".to_string(), "replay".to_string()]);
+        // An index cached by an older launcher (no links, no defaultMods) still reads.
+        let old: Index = serde_json::from_str(r#"{"loader":"0.1.27","mods":[]}"#).unwrap();
+        assert!(old.default_mods.is_empty() && old.links.heads.is_empty());
     }
 
     #[test]

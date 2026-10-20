@@ -16,13 +16,17 @@
 #   1. the changelog is required before anything is built: changelog/<version>.en_US.md (.pt_BR.md optional);
 #   2. tools/client.sh builds the interface and the launcher; update.json says the version, the sha256 of the
 #      executable and where to download it ("base": this version's release here);
-#   3. release v<version> here with SteinClient.exe, update.json and THIRD-PARTY-NOTICES.txt. Every Stein Client after
-#      0.3.0 reads releases/latest/download/update.json here to update itself (0.3.0 reads the frozen
-#      Stein-Project/stein-client, whose last update.json points here). Never publish a client.json again: launchers
-#      up to 0.2.9 read that name and must stay on 0.2.9;
+#   3. release v<version> here with SteinClient.exe, update.json and THIRD-PARTY-NOTICES.txt. Stein Clients 0.3.1 and
+#      0.3.2 read releases/latest/download/update.json here to update themselves (0.3.0 reads the frozen
+#      Stein-Project/stein-client, whose last update.json points here). Never attach a client.json to a release
+#      again: launchers up to 0.2.9 read that name there and must stay on 0.2.9;
+#   4. client.json in the Stein registry (Stein-Project/registry, .github/scripts/registry.sh): the same content as
+#      update.json. Launchers after 0.3.2 read it there, signed by the registry's own workflow; update.json stays in
+#      the release for the launchers up to 0.3.2.
 # No test versions: the launcher has no test channel. Running the same tag again publishes nothing twice.
 #
-# Nothing to set up: the release goes to this repository with the workflow's own token.
+# The release goes to this repository with the workflow's own token; the registry needs the REGISTRY_TOKEN secret (a
+# fine-grained token with Contents: write on Stein-Project/registry). A dry run shows the client.json it would write.
 name: release
 
 on:
@@ -128,6 +132,7 @@ jobs:
         run: |
           echo "release v$VERSION -> $GITHUB_REPOSITORY:"
           ls dist; cat dist/update.json
+          echo "registry: client.json would become the update.json above"
           echo "(dry run: nothing was published)"
 
       - name: Publish
@@ -139,3 +144,14 @@ jobs:
           set -euo pipefail
           . .github/scripts/dist.sh
           dist_release "$GITHUB_REPOSITORY" "v$VERSION" "Stein Client $VERSION" notes.md 0 dist/*
+
+      - name: Registry
+        if: env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          [ -n "$GH_TOKEN" ] || { echo "::error::the REGISTRY_TOKEN secret is missing"; exit 1; }
+          . .github/scripts/registry.sh
+          registry_put client.json dist/update.json "Stein Client $VERSION"

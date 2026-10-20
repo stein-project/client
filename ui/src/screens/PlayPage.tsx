@@ -233,8 +233,10 @@ function NewsCard({ news }: { news: News }) {
     )
 }
 
-/** The Stein Labs Discord: the index news link when it is a Discord invite, otherwise the built-in invite. */
+/** The Stein Labs Discord: the registry's invite, then the news link when it is a Discord invite, then the built-in one. */
 function discordUrl(state: AppState): string {
-    const url = state.news?.url ?? ''
-    return /^https:\/\/(discord\.gg|discord\.com)\//.test(url) ? url : 'https://discord.gg/MEHE9b5bjj'
+    const isDiscord = (url: string) => /^https:\/\/(discord\.gg|discord\.com)\//.test(url)
+    const fromRegistry = state.links?.discord ?? ''
+    const fromNews = state.news?.url ?? ''
+    return isDiscord(fromRegistry) ? fromRegistry : isDiscord(fromNews) ? fromNews : 'https://discord.gg/MEHE9b5bjj'
 }

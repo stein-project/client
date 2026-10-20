@@ -38,7 +38,7 @@ pub fn self_update(handle: AppHandle, root: Root, hops: u32) {
         clean(&exe);
         let _ = std::fs::remove_file(stein_core::update::updater_exe(&root));
         let http = stein_core::net::client();
-        let Ok(m) = stein_core::update::manifest(&http).await else { return };
+        let Ok(m) = stein_core::update::manifest(&http, &root).await else { return };
         if !stein_core::update::is_newer(&m.version, stein_core::VERSION)
             || stein_core::update::is_current(&m, "SteinClient", &exe).unwrap_or(true)
         {

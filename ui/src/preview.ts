@@ -79,6 +79,7 @@ const state: AppState = {
         { key: 'render', on: q.has('dev') },
     ],
     jvmArgs: q.has('dev') ? '-Dsteinbridge.gfx.gpuHeldItem=false' : '',
+    links: { discord: 'https://discord.gg/MEHE9b5bjj', heads: 'https://mc-heads.net/avatar/{uuid}/{size}' },
 }
 
 /** `?dev`: the Settings page with the developer options open. */

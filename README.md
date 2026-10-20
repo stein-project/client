@@ -22,11 +22,12 @@ The Stein Client sends nothing about you anywhere. It talks only to the services
 - **Microsoft, Xbox Live and Minecraft** (`login.live.com`, `xboxlive.com`, `minecraftservices.com`): signing in and
   confirming that the account owns the game. The sign-in token stays in Windows' own credential vault.
 - **Mojang** (`mojang.com`, `minecraft.net`): Minecraft 1.8.9 itself.
-- **GitHub** (`github.com`, `githubusercontent.com`): the Stein Loader, Java, the official mods and the launcher's own
-  updates.
+- **GitHub** (`github.com`, `githubusercontent.com`, `stein-project.github.io`): the Stein Loader, Java, the official
+  mods and the launcher's own updates, and the Stein registry, which says what is current (signed files, read with no
+  information about you).
 - **Third-party mod sources you add**: wherever their author hosts them (only after you confirm the warning).
-- **mc-heads.net**: the skin heads shown next to your accounts. It receives each account's uuid, which is how it
-  knows whose head to draw.
+- **mc-heads.net** (or the head service the registry names): the skin heads shown next to your accounts. It
+  receives each account's uuid, which is how it knows whose head to draw.
 
 No analytics, no telemetry, no ads.
 

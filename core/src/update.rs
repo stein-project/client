@@ -13,7 +13,9 @@
 //! was left in the folder. Launchers from those versions no longer update themselves: SteinClient.exe has to be
 //! downloaded again.
 //!
-//! The Stein Client release publishes `update.json`: the version and the sha256 of each executable for this OS.
+//! The Stein registry's `client.json` (signed, [`crate::registry`]) says the latest version and the sha256 of each
+//! executable for this OS; the Stein Client release still publishes the same content as `update.json`, which 0.3.1
+//! and 0.3.2 read there.
 //!
 //! Up to 0.2.9 the file was `client.json`. Releases after that publish only `update.json`, so launchers up to 0.2.9
 //! find no `client.json` in the latest release and stay on 0.2.9 for good (the `client.json` of the v0.2.9 release is
@@ -30,9 +32,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::net::{self, Hash};
 
-/// The releases of this repository. 0.3.0 read Stein-Project/stein-client, frozen since: the update.json of its last
-/// release points at the first release here, so those launchers come over in one update.
-const MANIFEST_URL: &str = "https://github.com/Stein-Project/client/releases/latest/download/update.json";
+/// The registry file with the latest launcher ([`crate::registry`], signed). Up to 0.3.2 it was update.json of this
+/// repository's latest release, which the release workflow keeps publishing for those launchers (and 0.3.0 read
+/// Stein-Project/stein-client, frozen since: the update.json of its last release points at the first release here).
+const MANIFEST_FILE: &str = "client.json";
 
 /// What the Stein Client release publishes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,9 +47,9 @@ pub struct ClientManifest {
     pub base: String,
 }
 
-/// The update.json of the latest release.
-pub async fn manifest(http: &reqwest::Client) -> Result<ClientManifest> {
-    parse_manifest(&net::fetch(http, MANIFEST_URL).await?)
+/// The latest launcher, from the registry's `client.json` (the stored copy when the registry cannot be read now).
+pub async fn manifest(http: &reqwest::Client, root: &crate::paths::Root) -> Result<ClientManifest> {
+    parse_manifest(&crate::registry::load(http, root, MANIFEST_FILE).await?)
 }
 
 /// Parses an update.json. The executable is only ever downloaded over HTTPS, whatever the manifest says.

@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-import { Account, api, AppState, onGame, onSelfUpdate } from './api'
+import { Account, api, AppState, onGame, onSelfUpdate, setHeads } from './api'
 import { Head } from './components/Head'
 import { Window } from './components/Window'
 import { Logo, Monogram } from './ds/Brand'
@@ -44,7 +44,14 @@ export function App() {
             un.then((f) => f())
         }
     }, [])
-    const refresh = useCallback(() => api.state().then(setState), [])
+    const refresh = useCallback(
+        () =>
+            api.state().then((s) => {
+                setHeads(s.links?.heads)
+                setState(s)
+            }),
+        [],
+    )
 
     useEffect(() => {
         refresh()
