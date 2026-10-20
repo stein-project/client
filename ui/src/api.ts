@@ -64,7 +64,13 @@ export type AppState = {
     sources: Source[]
     /** A one-time notice (e.g. a mod that moved to a third-party source). */
     notice: string | null
+    /** Developer options: the Stein log topics (shared with the game's Log tab) and the extra Java arguments. */
+    logTopics: LogTopic[]
+    jvmArgs: string
 }
+
+/** A Stein log topic, by the key the game stores it under. */
+export type LogTopic = { key: string; on: boolean }
 
 export type DeviceCode = { userCode: string; verificationUri: string; expiresIn: number }
 
@@ -84,9 +90,11 @@ export const api = {
     dismissNotice: () => invoke<void>('dismiss_notice'),
     setCloseOnPlay: (value: boolean) => invoke<void>('set_close_on_play', { value }),
     setGfx: (value: boolean) => invoke<void>('set_gfx', { value }),
+    setLogTopic: (key: string, value: boolean) => invoke<void>('set_log_topic', { key, value }),
+    setJvmArgs: (value: string) => invoke<void>('set_jvm_args', { value }),
     play: (debug = false) => invoke<void>('play', { debug }),
     openCrashLog: () => invoke<void>('open_crash_log'),
-    openPath: (kind: 'game' | 'mods' | 'logs' | 'screenshots') => invoke<void>('open_path', { kind }),
+    openPath: (kind: 'game' | 'mods' | 'logs' | 'steinlogs' | 'screenshots') => invoke<void>('open_path', { kind }),
     openUrl: (url: string) => invoke<void>('open_url', { url }),
 }
 

@@ -18,7 +18,9 @@
  * - `?crash`: the Play page after a crash;
  * - `?notice`: the one-time notice about a mod that became third-party;
  * - `?offline`: the offline-account form open, with the invalid-nickname error;
- * - `?gfx`: the Stein GFX toggle on.
+ * - `?gfx`: the Stein GFX toggle on;
+ * - `?dev`: the developer options open, with a log topic on and an extra Java argument;
+ * - `?running`: the game open (the log topics locked in the launcher).
  */
 import type { AppState } from './api'
 
@@ -70,8 +72,17 @@ const state: AppState = {
         : null,
     closeOnPlay: true,
     news: { title: 'Junte-se ao Discord', text: 'Novas versões, suporte e dúvidas.', url: 'https://discord.gg/MEHE9b5bjj' },
-    running: false,
+    running: q.has('running'),
+    logTopics: [
+        { key: 'rede', on: false },
+        { key: 'desempenho', on: false },
+        { key: 'render', on: q.has('dev') },
+    ],
+    jvmArgs: q.has('dev') ? '-Dsteinbridge.gfx.gpuHeldItem=false' : '',
 }
+
+/** `?dev`: the Settings page with the developer options open. */
+export const previewDev = q.has('dev')
 
 export async function mockInvoke(cmd: string): Promise<unknown> {
     switch (cmd) {
