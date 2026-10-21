@@ -87,6 +87,16 @@ struct StateView {
     sources: Vec<stein_core::sources::Source>,
     /// A one-time notice (the one about the migration to third-party mods).
     notice: Option<String>,
+    /// Developer options: the Stein log topics (as the game's Log tab has them) and the extra Java arguments.
+    log_topics: Vec<LogTopic>,
+    jvm_args: String,
+}
+
+/// A Stein log topic and whether it is on.
+#[derive(Serialize)]
+struct LogTopic {
+    key: String,
+    on: bool,
 }
 
 /// A third-party source that was read, for the player to review before adding it.
@@ -156,6 +166,8 @@ fn app_state(app: State<'_, App>) -> StateView {
         running: app.running.load(Ordering::Relaxed),
         sources: stein_core::sources::third_party(root),
         notice: settings.notice.clone(),
+        log_topics: stein_core::steinlog::topics(root).into_iter().map(|(key, on)| LogTopic { key, on }).collect(),
+        jvm_args: settings.jvm_args.clone(),
     }
 }
 
@@ -324,6 +336,24 @@ fn set_gfx(app: State<'_, App>, value: bool) -> Res<()> {
     s.save(&app.root).map_err(err)
 }
 
+/// Developer options: a Stein log topic, in the same file the game's Log tab uses. Not while the game is open: the
+/// game holds the choice then and writes it back when it changes.
+#[tauri::command]
+fn set_log_topic(app: State<'_, App>, key: String, value: bool) -> Res<()> {
+    if app.running.load(Ordering::Relaxed) {
+        return Err("Feche o jogo para mudar os logs por aqui, ou mude no menu do Stein Loader dentro do jogo.".into());
+    }
+    stein_core::steinlog::set_topic(&app.root, &key, value).map_err(err)
+}
+
+/// Developer options: the extra Java arguments, from the next start on.
+#[tauri::command]
+fn set_jvm_args(app: State<'_, App>, value: String) -> Res<()> {
+    let mut s = Settings::load(&app.root);
+    s.jvm_args = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    s.save(&app.root).map_err(err)
+}
+
 /// Prepares (fast when already up to date), signs in with the account without a code and starts the game. The
 /// launcher hides (the default) or minimises and keeps watching the game: if it exits normally, the launcher exits
 /// too (or comes back, if it was only minimised); if the game crashes, the launcher comes back and shows what to do.
@@ -429,6 +459,7 @@ fn open_path(app: State<'_, App>, kind: String) -> Res<()> {
     let path = match kind.as_str() {
         "mods" => root.mods(),
         "logs" => root.dir().join("logs"),
+        "steinlogs" => root.dir().join("logs").join("stein"),
         "screenshots" => root.dir().join("screenshots"),
         _ => root.dir().to_path_buf(),
     };
@@ -518,6 +549,8 @@ fn main() {
             dismiss_notice,
             set_close_on_play,
             set_gfx,
+            set_log_topic,
+            set_jvm_args,
             play,
             open_path,
             open_url

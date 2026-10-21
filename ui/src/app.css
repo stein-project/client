@@ -329,6 +329,8 @@ body { user-select: none; }
 .source__host { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--text-faint); }
 .source-form { margin-top: 8px; animation: enter-up var(--dur-base) var(--ease-standard) both; }
 .source-form__text { width: 100%; min-height: 72px; resize: vertical; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; }
+.dev-args { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+.dev-args .source-form__text { min-height: 52px; }
 .warning { margin-top: 8px; }
 .warning .crash__head > svg { color: var(--gold); }
 .warning__kv { margin-top: 14px; grid-template-columns: 110px 1fr; }

@@ -13,9 +13,9 @@ import { ErrorText } from '../components/ErrorText'
 import { Head } from '../components/Head'
 import { SectionHead } from '../components/SectionHead'
 import { Icon } from '../ds/Icon'
-import { previewNickError, previewOffline } from '../preview'
+import { previewDev, previewNickError, previewOffline } from '../preview'
 
-/** The Settings page: accounts, game options and the About section. */
+/** The Settings page: accounts, game options, the About section and the developer options. */
 export function SettingsPage({ state, refresh, onAdd }: { state: AppState; refresh: () => void; onAdd: () => void }) {
     return (
         <div className="page">
@@ -26,6 +26,7 @@ export function SettingsPage({ state, refresh, onAdd }: { state: AppState; refre
             <AccountsSection state={state} refresh={refresh} onAdd={onAdd} />
             <GameSection state={state} refresh={refresh} />
             <AboutSection state={state} />
+            <DevSection state={state} refresh={refresh} />
         </div>
     )
 }
@@ -202,6 +203,121 @@ function GameSection({ state, refresh }: { state: AppState; refresh: () => void 
                     Abrir logs
                 </button>
             </div>
+        </div>
+    )
+}
+
+/** What each Stein log topic is, by the key the game stores it under. */
+const LOG_TOPICS: Record<string, { title: string; text: string }> = {
+    rede: {
+        title: 'Rede e pacotes',
+        text: 'Pacotes recebidos e enviados, por tipo, a cada segundo. Para quedas de conexão e travamentos.',
+    },
+    desempenho: {
+        title: 'Desempenho',
+        text: 'Quadros, ticks, memória e coleta de lixo, a cada segundo. Para quedas de FPS e engasgos.',
+    },
+    render: {
+        title: 'Desenho dos itens',
+        text: 'A placa de vídeo, as opções e como cada item é montado e desenhado. Para itens que aparecem errados.',
+    },
+}
+
+const DEV_OPEN_KEY = 'stein.devOptions'
+
+/**
+ * Developer options, closed by default: the Stein log topics (the same switches as the Log tab of the Stein Loader
+ * menu in the game, kept in the same file) and extra Java arguments for the game.
+ */
+function DevSection({ state, refresh }: { state: AppState; refresh: () => void }) {
+    const [open, setOpen] = useState(() => previewDev || localStorage.getItem(DEV_OPEN_KEY) === '1')
+    const [args, setArgs] = useState(state.jvmArgs)
+    const [error, setError] = useState('')
+    const toggleOpen = () => {
+        localStorage.setItem(DEV_OPEN_KEY, open ? '0' : '1')
+        setOpen(!open)
+    }
+    const topic = async (key: string, on: boolean) => {
+        setError('')
+        try {
+            await api.setLogTopic(key, on)
+        } catch (err) {
+            setError(String(err))
+        }
+        refresh()
+    }
+    const saveArgs = async () => {
+        setError('')
+        try {
+            await api.setJvmArgs(args)
+        } catch (err) {
+            setError(String(err))
+        }
+        refresh()
+    }
+    return (
+        <div className="section">
+            <SectionHead n="IV" label="Desenvolvedor" />
+            {!open ? (
+                <div className="actions">
+                    <button className="btn btn-ghost" onClick={toggleOpen}>
+                        Mostrar opções de desenvolvedor
+                    </button>
+                </div>
+            ) : (
+                <>
+                    <div className="rows">
+                        {state.logTopics.map((t) => (
+                            <div className="row" key={t.key}>
+                                <div className="row__main">
+                                    <div className="row__title">{LOG_TOPICS[t.key]?.title ?? t.key}</div>
+                                    <div className="row__text">{LOG_TOPICS[t.key]?.text ?? ''}</div>
+                                </div>
+                                <button
+                                    className={'toggle' + (t.on ? ' toggle--on' : '')}
+                                    onClick={() => topic(t.key, !t.on)}
+                                    disabled={state.running}
+                                    aria-label={LOG_TOPICS[t.key]?.title ?? t.key}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                    <p className="note">
+                        {state.running
+                            ? 'Com o jogo aberto, mude os logs no menu do Stein Loader, na aba Registro.'
+                            : 'Os logs ficam em logs/stein, um arquivo por assunto. São os mesmos interruptores da aba Registro do menu do Stein Loader no jogo: mudar aqui muda lá, e o contrário também.'}
+                    </p>
+                    <div className="dev-args">
+                        <div className="row__title">Argumentos da JVM</div>
+                        <textarea
+                            className="input source-form__text"
+                            value={args}
+                            onChange={(e) => setArgs(e.target.value)}
+                            placeholder="-Dsteinbridge.gfx.gpuHeldItem=false"
+                            rows={2}
+                            spellCheck={false}
+                            aria-label="Argumentos extras da JVM"
+                        />
+                    </div>
+                    <p className="note">
+                        Opções -D do Stein para testes, passadas ao jogo por último. Valem a partir da próxima abertura do
+                        jogo. Deixe vazio se não souber para que servem.
+                    </p>
+                    {error && <ErrorText error={error} />}
+                    <div className="actions">
+                        <button className="sl-btn sl-btn--accent" onClick={saveArgs} disabled={args === state.jvmArgs}>
+                            Salvar argumentos
+                        </button>
+                        <button className="btn btn-ghost" onClick={() => api.openPath('steinlogs')}>
+                            <Icon name="folder" size={14} stroke={1.4} />
+                            Logs do Stein
+                        </button>
+                        <button className="btn btn-ghost" onClick={toggleOpen}>
+                            Ocultar
+                        </button>
+                    </div>
+                </>
+            )}
         </div>
     )
 }

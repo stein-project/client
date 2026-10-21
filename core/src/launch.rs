@@ -129,6 +129,10 @@ pub fn command(root: &Root, session: &Session, client_version: &str, debug: bool
             cmd.arg(vars(s));
         }
     }
+    // Developer options: last, so a repeated -D wins over the launcher's (Java keeps the last one).
+    for a in settings.jvm_args.split_whitespace() {
+        cmd.arg(a);
+    }
     cmd.arg(json["mainClass"].as_str().ok_or_else(|| anyhow!("version has no main class"))?);
     match json["arguments"]["game"].as_array() {
         Some(args) => {

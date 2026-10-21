@@ -40,6 +40,9 @@ pub struct Settings {
     pub migrations: Vec<String>,
     /// A notice shown once in the launcher (from a migration) until the player dismisses it.
     pub notice: Option<String>,
+    /// Developer options: extra Java arguments for the game (the Stein `-D` flags), added last so they win over the
+    /// launcher's own.
+    pub jvm_args: String,
 }
 
 impl Default for Settings {
@@ -51,6 +54,7 @@ impl Default for Settings {
             gfx: None,
             gfx_unsupported: false,
             migrations: Vec::new(),
+            jvm_args: String::new(),
             notice: None,
         }
     }
