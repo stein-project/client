@@ -36,10 +36,10 @@ command line, which takes a separate folder: `cargo run -p stein-core --bin stei
 
 Write `changelog/<version>.en_US.md` (and optionally `.pt_BR.md`), bump `version` in `Cargo.toml`
 (`[workspace.package]`), then push a `v<version>` tag. `.github/workflows/release.yml` builds `SteinClient.exe` and
-publishes it with `update.json` and `THIRD-PARTY-NOTICES.txt` as a release of this repository, and writes the same
-content as `client.json` in the [Stein registry](https://github.com/Stein-Project/registry) (the `REGISTRY_TOKEN`
-secret), where launchers after 0.3.2 look for updates; 0.3.1 and 0.3.2 keep reading the release's `update.json`.
-Running the workflow by hand is a dry run that publishes nothing.
+publishes it with `update.json` and `THIRD-PARTY-NOTICES.txt` as a release of this repository. Running the workflow
+by hand is a dry run that publishes nothing. After the release, run the `publish` workflow of the
+[Stein registry](https://github.com/Stein-Project/registry) by hand: it publishes the same content, signed, as
+`client.json`, where launchers after 0.3.2 look for updates; 0.3.1 and 0.3.2 keep reading the release's `update.json`.
 
 Everything else the launcher looks up at run time (the Loader version, the official mods and which are enabled out
 of the box, links, the game's Java arguments, revoked mods, migrations) comes from the registry, signed: see its
