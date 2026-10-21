@@ -352,9 +352,18 @@ fn set_log_topic(app: State<'_, App>, key: String, value: bool) -> Res<()> {
     stein_core::steinlog::set_topic(&app.root, &key, value).map_err(err)
 }
 
-/// Developer options: the extra Java arguments, from the next start on.
+/// Developer options: the extra Java arguments, from the next start on. Arguments outside the allowed list
+/// ([`stein_core::launch::registry_arg_allowed`]) are refused here, and dropped at start anyway.
 #[tauri::command]
 fn set_jvm_args(app: State<'_, App>, value: String) -> Res<()> {
+    let rejected = stein_core::launch::rejected_dev_args(&value);
+    if !rejected.is_empty() {
+        return Err(format!(
+            "Argumentos não permitidos: {}. Só valem -Xmx, -Xms, opções -XX: de memória e coleta de lixo, \
+             --enable-native-access= e propriedades -D do Stein (stein., steinbridge., steinloader.).",
+            rejected.join(" ")
+        ));
+    }
     let mut s = Settings::load(&app.root);
     s.jvm_args = value.split_whitespace().collect::<Vec<_>>().join(" ");
     s.save(&app.root).map_err(err)

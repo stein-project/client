@@ -129,9 +129,15 @@ pub async fn fetch(http: &reqwest::Client, root: &Root, name: &str) -> Result<Ve
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    let tmp = path.with_extension("json.tmp");
+    // A temporary file of its own: two fetches of the same file at once (the index and a refresh) never mix.
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let tmp = path.with_extension(format!("json.{}-{n}.tmp", std::process::id()));
     std::fs::write(&tmp, &body)?;
-    std::fs::rename(tmp, path)?;
+    if let Err(e) = std::fs::rename(&tmp, path) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e.into());
+    }
     Ok(body)
 }
 

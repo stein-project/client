@@ -148,10 +148,10 @@ jobs:
       - name: Registry
         if: env.DRY_RUN != 'true'
         env:
-          GH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          [ -n "$GH_TOKEN" ] || { echo "::error::the REGISTRY_TOKEN secret is missing"; exit 1; }
           . .github/scripts/registry.sh
-          registry_put client.json dist/update.json "Stein Client $VERSION"
+          client_json() { cp dist/update.json "$2"; }
+          registry_update client.json "Stein Client $VERSION" client_json

@@ -132,7 +132,7 @@ pub async fn index(http: &reqwest::Client, root: &Root) -> Result<Index> {
     let previous = cached_index(root).map(|i| i.mods).unwrap_or_default();
     let official: Vec<String> = raw["sources"]
         .as_array()
-        .map(|a| a.iter().filter_map(|u| u.as_str()).filter(|u| sources::allowed_url(u)).map(str::to_string).collect())
+        .map(|a| a.iter().filter_map(|u| u.as_str()).filter(|u| official_source(root, u)).map(str::to_string).collect())
         .unwrap_or_default();
     if !official.is_empty() {
         index.mods = sources::gather(http, root, &official, false, &previous).await;
@@ -160,6 +160,20 @@ pub async fn index(http: &reqwest::Client, root: &Root) -> Result<Index> {
 }
 
 /// The index from a parsed `stein.json`.
+/// An official mod index must be a file of the registry, read with its signature: an address anywhere else would be a
+/// plain download, outside what the registry's key vouches for.
+fn official_source(root: &Root, url: &str) -> bool {
+    let ok = sources::allowed_url(url) && registry::file_of(url).is_some();
+    if !ok {
+        registry::note(
+            root,
+            "launcher.log",
+            &format!("stein.json: official source outside the registry, ignored: {url}"),
+        );
+    }
+    ok
+}
+
 fn parse_index(raw: &serde_json::Value) -> Result<Index> {
     let loader = raw["latest"]["version"]
         .as_str()

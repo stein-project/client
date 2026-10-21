@@ -93,15 +93,32 @@ const XX_ALLOWED: &[&str] = &[
 /// and `-D` properties of Stein's own components only: never an agent, a classpath, a command, another program's
 /// property, nor the diagnostic properties (`steinbridge.diag.*`), which type, press keys and attack on their own.
 pub fn registry_arg_allowed(arg: &str) -> bool {
+    // One argument each, without control characters (a NUL would make the start itself fail).
+    if arg.is_empty() || arg.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return false;
+    }
     let property = |p: &str| {
-        ["stein.", "steinbridge.", "steinloader."].iter().any(|ok| p.starts_with(ok))
-            && !p.starts_with("steinbridge.diag.")
+        let name = p.split_once('=').map_or(p, |(n, _)| n);
+        ["stein.", "steinbridge.", "steinloader."].iter().any(|ok| name.starts_with(ok))
+            && name.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c))
+            // Diagnostic properties of any component (`steinbridge.diag.*`, `steinloader.diag.*`...).
+            && !name.split('.').any(|part| part == "diag")
     };
-    arg.starts_with("-Xmx")
-        || arg.starts_with("-Xms")
+    let memory = |v: &str| {
+        let digits = v.strip_suffix(['k', 'K', 'm', 'M', 'g', 'G', 't', 'T']).unwrap_or(v);
+        !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit())
+    };
+    let modules = |v: &str| !v.is_empty() && v.chars().all(|c| c.is_ascii_alphanumeric() || "._,-".contains(c));
+    arg.strip_prefix("-Xmx").is_some_and(memory)
+        || arg.strip_prefix("-Xms").is_some_and(memory)
         || arg.strip_prefix("-XX:").is_some_and(xx_allowed)
-        || arg.starts_with("--enable-native-access=")
+        || arg.strip_prefix("--enable-native-access=").is_some_and(modules)
         || arg.strip_prefix("-D").is_some_and(property)
+}
+
+/// The developer options' arguments that [`registry_arg_allowed`] does not let through (they are dropped at start).
+pub fn rejected_dev_args(args: &str) -> Vec<String> {
+    args.split_whitespace().filter(|a| !registry_arg_allowed(a)).map(str::to_string).collect()
 }
 
 /// A `-XX:` flag (without the prefix) from [`XX_ALLOWED`], ZGC's (`Z...`) or G1's (`G1...`), with a plain value.
@@ -263,7 +280,12 @@ pub fn command(root: &Root, session: &Session, client_version: &str, debug: bool
     let mut cmd = std::process::Command::new(game_java(root));
     cmd.current_dir(root.dir());
     let ram = ram_gb(root);
-    for a in base_java_args(root) {
+    let base = base_java_args(root);
+    // The memory cap always applies, even when the arguments in use do not carry an -Xmx.
+    if !base.iter().any(|a| a.starts_with("-Xmx")) {
+        cmd.arg(format!("-Xmx{ram}G"));
+    }
+    for a in base {
         if a.starts_with("-Xmx") {
             cmd.arg(format!("-Xmx{ram}G"));
         } else {
@@ -287,7 +309,8 @@ pub fn command(root: &Root, session: &Session, client_version: &str, debug: bool
     for a in compat_args(root) {
         cmd.arg(a);
     }
-    for a in settings.jvm_args.split_whitespace() {
+    // The developer options go through the same list: pasting something into them must not run code either.
+    for a in registry_args(root, &settings.jvm_args, "developer options") {
         cmd.arg(a);
     }
     cmd.arg(json["mainClass"].as_str().ok_or_else(|| anyhow!("version has no main class"))?);
@@ -393,6 +416,8 @@ mod tests {
             "-Dsteinbridge.gfx.gpuHeldItem=false",
             "-Dstein.debug=render",
             "-Dsteinloader.noAnnounce=true",
+            "-Dsteinloader.disable=hud,replay",
+            "--enable-native-access=ALL-UNNAMED,javafx.graphics",
         ] {
             assert!(registry_arg_allowed(ok), "{ok}");
         }
@@ -413,6 +438,22 @@ mod tests {
             "-Dstein",
             "-jar",
             "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "-XX:onerror=calc",
+            "-XX:+FlightRecorder",
+            "-XX:StartFlightRecording=filename=x.jfr",
+            "-Dsteinbridge.diag=true",
+            "-Dsteinloader.diag.editorOptions=x",
+            "-DSteinbridge.diag.keys=1",
+            "-Dstein.x\u{0}=1",
+            "-Dstein.x=a b",
+            "-Xmx4G -javaagent:x.jar",
+            "-Xmx4G;x",
+            "-Xms",
+            "-XmxG",
+            "--enable-native-access=",
+            "--enable-native-access=a/b",
+            "@args.txt",
+            "",
         ] {
             assert!(!registry_arg_allowed(bad), "{bad}");
         }
@@ -466,6 +507,7 @@ mod tests {
         assert_eq!(compat_args(&root), vec!["-Dsteinbridge.gfx.gpuHeldItem=false".to_string()]);
         let log = std::fs::read_to_string(root.logs().join("launcher.log")).unwrap();
         assert!(log.contains("-javaagent:evil.jar") && log.contains("-Dfoo=1"));
+        assert_eq!(rejected_dev_args(" -Dstein.debug=all  -javaagent:x.jar "), vec!["-javaagent:x.jar".to_string()]);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
