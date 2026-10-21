@@ -17,7 +17,8 @@
 //!               "url": "https://...", "sha256": "...", "loader": "0.1.21", "description": "..." } ] }
 //! ```
 //!
-//! - **Official**: the sources in the `sources` list of `stein.json`. Enabled out of the box, without a warning.
+//! - **Official**: the sources in the `sources` list of the registry's `stein.json` (each one a `mods/<id>.json` of the
+//!   registry, read with its signature). Enabled out of the box, without a warning.
 //! - **Third-party**: the ones the player pastes into the launcher (the index link, or the JSON itself with its
 //!   `source`), after a security warning. Stored in `stein-client/sources.json`.
 //!
@@ -38,25 +39,37 @@ use crate::stein::IndexMod;
 /// The `steinmods.json` format this launcher understands.
 pub const FORMAT: u64 = 1;
 
-/// Combat and Mouse left the official list on 2026-10-12 and became third-party mods by X4vieer: (old id in the
-/// official index, id inside the mod, name, new index).
-const MOVED: &[(&str, &str, &str, &str)] = &[
-    (
-        "combat",
-        "steincombat",
-        "Combat",
-        "https://github.com/brenoxavier/SteinCombat/releases/latest/download/steinmods.json",
-    ),
-    (
-        "mouse",
-        "steinmouse",
-        "Mouse",
-        "https://github.com/brenoxavier/SteinMouse/releases/latest/download/steinmods.json",
-    ),
-];
-const MOVED_AUTHOR: &str = "X4vieer";
-/// The migration's marker in the settings: it runs once.
-const MIGRATION: &str = "third-party-combat-mouse";
+/// The registry file with the official mods that moved to a third-party source.
+const MIGRATIONS_FILE: &str = "migrations.json";
+
+/// One move of official mods to a third-party source (`migrations.json` of the registry). Combat and Mouse left the
+/// official list on 2026-10-12 and became third-party mods by X4vieer: that was the first one.
+#[derive(Debug, Clone, Deserialize)]
+struct Migration {
+    /// The marker in the settings: each migration runs once per folder.
+    id: String,
+    /// Who publishes the mods now (shown in the notice and as the source's author).
+    #[serde(default)]
+    author: String,
+    mods: Vec<Moved>,
+}
+
+/// A mod that moved: its old id in the official index, the id inside the mod, its name and its new index.
+#[derive(Debug, Clone, Deserialize)]
+struct Moved {
+    id: String,
+    #[serde(rename = "modId")]
+    mod_id: String,
+    name: String,
+    source: String,
+}
+
+/// The migrations in the registry's stored copy (none without a registry).
+fn migrations(root: &Root) -> Vec<Migration> {
+    crate::registry::cached_json(root, MIGRATIONS_FILE)
+        .and_then(|j| serde_json::from_value(j["migrations"].clone()).ok())
+        .unwrap_or_default()
+}
 
 /// A third-party source the player added.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -192,15 +205,30 @@ fn portable_file_name(name: &str) -> bool {
     !matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL") && !numbered("COM") && !numbered("LPT")
 }
 
+/// Reads one of the sources: a registry index is fetched with its signature ([`crate::registry`]), falling back to its
+/// stored verified copy, and any other one as a plain download.
+async fn fetch_source(http: &reqwest::Client, root: &Root, url: &str, third_party: bool) -> Result<Fetched> {
+    match crate::registry::file_of(url) {
+        Some(name) => {
+            let bytes = crate::registry::load(http, root, &name).await?;
+            let raw: serde_json::Value =
+                serde_json::from_slice(&bytes).map_err(|_| anyhow!("o índice {url} não é um JSON válido"))?;
+            parse(url, &raw, third_party)
+        }
+        None => fetch(http, url, third_party).await,
+    }
+}
+
 /// The mods from several sources, read concurrently. A source that did not respond keeps the mods it had in the last
 /// saved index (`previous`): without internet nothing disappears from the list, and nothing leaves the folder.
 pub async fn gather(
     http: &reqwest::Client,
+    root: &Root,
     urls: &[String],
     third_party: bool,
     previous: &[IndexMod],
 ) -> Vec<IndexMod> {
-    let all = futures_util::future::join_all(urls.iter().map(|u| fetch(http, u, third_party))).await;
+    let all = futures_util::future::join_all(urls.iter().map(|u| fetch_source(http, root, u, third_party))).await;
     let mut out: Vec<IndexMod> = Vec::new();
     for (url, got) in urls.iter().zip(all) {
         let mods = match got {
@@ -248,40 +276,55 @@ pub fn remove(root: &Root, url: &str) -> Result<()> {
     Ok(())
 }
 
-/// One-off: anyone with Combat or Mouse in the folder, enabled, starts receiving them from the new source
-/// (third-party mods by X4vieer) without a warning, since it is the same author. The old ids are removed from
-/// everyone's list of enabled official mods. Returns the notice to show, when something changed.
+/// Runs each migration of the registry (`migrations.json`) that has not run in this folder yet: anyone with a moved mod
+/// in the folder, enabled, starts receiving it from the new source without a warning, since it is the same author. The
+/// old ids are removed from everyone's list of enabled official mods. Returns the notice to show, when something
+/// changed. Without a registry copy there is nothing to run.
 pub fn migrate(root: &Root) -> Result<Option<String>> {
+    let mut last = None;
+    for m in migrations(root) {
+        if let Some(n) = run_migration(root, &m)? {
+            last = Some(n);
+        }
+    }
+    Ok(last)
+}
+
+fn run_migration(root: &Root, migration: &Migration) -> Result<Option<String>> {
     let mut s = Settings::load(root);
-    if s.migrations.iter().any(|m| m == MIGRATION) {
+    if migration.id.is_empty() || s.migrations.contains(&migration.id) {
         return Ok(None);
     }
-    // Without a settings file the old default applied: every official mod enabled, Combat and Mouse included.
+    // Without a settings file the old default applied: every official mod enabled, the moved ones included.
     let saved = root.settings_file().is_file();
     let files = crate::stein::mod_files(root);
     let mut list = third_party(root);
     let mut moved = Vec::new();
-    for (id, mod_id, name, url) in MOVED {
-        let on = (!saved || s.mods.iter().any(|m| m == id)) && files.contains_key(*mod_id);
-        s.mods.retain(|m| m != id);
+    for m in &migration.mods {
+        if !allowed_url(&m.source) {
+            continue;
+        }
+        let on = (!saved || s.mods.contains(&m.id)) && files.contains_key(&m.mod_id);
+        s.mods.retain(|x| *x != m.id);
         if !on {
             continue;
         }
-        if !list.iter().any(|x| x.url == *url) {
-            list.push(Source { url: url.to_string(), name: name.to_string(), author: MOVED_AUTHOR.to_string() });
+        if !list.iter().any(|x| x.url == m.source) {
+            list.push(Source { url: m.source.clone(), name: m.name.clone(), author: migration.author.clone() });
         }
-        if !s.mods.iter().any(|m| m == mod_id) {
-            s.mods.push(mod_id.to_string());
+        if !s.mods.contains(&m.mod_id) {
+            s.mods.push(m.mod_id.clone());
         }
-        moved.push(*name);
+        moved.push(m.name.as_str());
     }
     save(root, &list)?;
-    s.migrations.push(MIGRATION.to_string());
+    s.migrations.push(migration.id.clone());
     let notice = (!moved.is_empty()).then(|| {
         let names = moved.join(" e ");
         let verb = if moved.len() > 1 { "agora são mods de terceiros" } else { "agora é um mod de terceiros" };
+        let author = &migration.author;
         format!(
-            "{names} {verb} do {MOVED_AUTHOR}, com o código aberto. Continuam instalados e sendo atualizados: \
+            "{names} {verb} do {author}, com o código aberto. Continuam instalados e sendo atualizados: \
              a fonte nova já foi adicionada em Mods de terceiros."
         )
     });
@@ -299,7 +342,19 @@ mod tests {
     fn root() -> (Root, PathBuf) {
         let dir = std::env::temp_dir().join(format!("stein-sources-{}-{}", std::process::id(), rand_suffix()));
         std::fs::create_dir_all(&dir).unwrap();
-        (Root::at(&dir), dir)
+        let r = Root::at(&dir);
+        // The registry's migrations.json as published (the stored copy counts as verified).
+        std::fs::create_dir_all(r.own().join("registry")).unwrap();
+        std::fs::write(
+            r.own().join("registry").join("migrations.json"),
+            r#"{"schema": 1, "migrations": [{"id": "third-party-combat-mouse", "author": "X4vieer", "mods": [
+                {"id": "combat", "modId": "steincombat", "name": "Combat",
+                 "source": "https://github.com/brenoxavier/SteinCombat/releases/latest/download/steinmods.json"},
+                {"id": "mouse", "modId": "steinmouse", "name": "Mouse",
+                 "source": "https://github.com/brenoxavier/SteinMouse/releases/latest/download/steinmods.json"}]}]}"#,
+        )
+        .unwrap();
+        (r, dir)
     }
 
     fn rand_suffix() -> u64 {
@@ -405,6 +460,17 @@ mod tests {
         assert!(s.mods.contains(&"steincombat".to_string()) && s.mods.contains(&"steinmouse".to_string()));
         assert!(!s.mods.contains(&"combat".to_string()));
         assert_eq!(third_party(&r).len(), 2);
+    }
+
+    #[test]
+    fn migration_needs_the_registry() {
+        // Without the registry's copy there is nothing to run, and the marker is not set (it runs once one arrives).
+        let (r, dir) = root();
+        std::fs::remove_file(r.own().join("registry").join("migrations.json")).unwrap();
+        fake_mod(&dir, "Combat.steinmod", "steincombat");
+        assert!(migrate(&r).unwrap().is_none());
+        assert!(Settings::load(&r).migrations.is_empty());
+        assert!(third_party(&r).is_empty());
     }
 
     #[test]

@@ -16,10 +16,13 @@
 #   1. the changelog is required before anything is built: changelog/<version>.en_US.md (.pt_BR.md optional);
 #   2. tools/client.sh builds the interface and the launcher; update.json says the version, the sha256 of the
 #      executable and where to download it ("base": this version's release here);
-#   3. release v<version> here with SteinClient.exe, update.json and THIRD-PARTY-NOTICES.txt. Every Stein Client after
-#      0.3.0 reads releases/latest/download/update.json here to update itself (0.3.0 reads the frozen
-#      Stein-Project/stein-client, whose last update.json points here). Never publish a client.json again: launchers
-#      up to 0.2.9 read that name and must stay on 0.2.9;
+#   3. release v<version> here with SteinClient.exe, update.json and THIRD-PARTY-NOTICES.txt. Stein Clients 0.3.1 and
+#      0.3.2 read releases/latest/download/update.json here to update themselves (0.3.0 reads the frozen
+#      Stein-Project/stein-client, whose last update.json points here). Never attach a client.json to a release
+#      again: launchers up to 0.2.9 read that name there and must stay on 0.2.9;
+#   4. after the release, run the publish workflow of the Stein registry (Stein-Project/registry) by hand: it reads
+#      this update.json and publishes it, signed, as client.json, which launchers after 0.3.2 read; update.json stays in
+#      the release for the launchers up to 0.3.2.
 # No test versions: the launcher has no test channel. Running the same tag again publishes nothing twice.
 #
 # Nothing to set up: the release goes to this repository with the workflow's own token.

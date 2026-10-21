@@ -14,7 +14,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::paths::Root;
 
-/// Official mods enabled out of the box: all of them.
+/// Official mods enabled out of the box when the registry has not said which (`defaultMods` in its `stein.json`): only
+/// a reserve for a first start without internet.
 pub const DEFAULT_MODS: &[&str] = &["hud", "connect", "keybind", "replay"];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,9 +61,26 @@ impl Default for Settings {
     }
 }
 
+/// The official mods enabled out of the box: the registry's `defaultMods` (from the last index read, or the stored
+/// `stein.json`), or [`DEFAULT_MODS`] when there is neither.
+pub fn default_mods(root: &Root) -> Vec<String> {
+    let from_index = crate::stein::cached_index(root).map(|i| i.default_mods).filter(|m| !m.is_empty());
+    let from_registry = || {
+        crate::registry::cached_json(root, "stein.json")?["defaultMods"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|m| m.as_str()).map(str::to_string).collect::<Vec<_>>())
+            .filter(|m| !m.is_empty())
+    };
+    from_index.or_else(from_registry).unwrap_or_else(|| DEFAULT_MODS.iter().map(|s| s.to_string()).collect())
+}
+
 impl Settings {
+    /// The saved settings; without them, the defaults with the official mods the registry enables out of the box.
     pub fn load(root: &Root) -> Settings {
-        std::fs::read(root.settings_file()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+        std::fs::read(root.settings_file())
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_else(|| Settings { mods: default_mods(root), ..Settings::default() })
     }
 
     /// Writes atomically (temporary file, then rename) so the settings are never left half-written.

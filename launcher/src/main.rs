@@ -90,6 +90,8 @@ struct StateView {
     /// Developer options: the Stein log topics (as the game's Log tab has them) and the extra Java arguments.
     log_topics: Vec<LogTopic>,
     jvm_args: String,
+    /// The project's addresses from the registry (Discord invite, player-head images); empty before the first index.
+    links: stein_core::stein::Links,
 }
 
 /// A Stein log topic and whether it is on.
@@ -146,6 +148,7 @@ fn app_state(app: State<'_, App>) -> StateView {
         })
         .unwrap_or_default();
     let components = stein_core::stein::components(root);
+    let links = index.as_ref().map(|i| i.links.clone()).unwrap_or_default();
     StateView {
         // No choice made on the toggle: on, unless this machine says otherwise.
         gfx: stein_core::launch::gfx(&settings),
@@ -168,6 +171,7 @@ fn app_state(app: State<'_, App>) -> StateView {
         notice: settings.notice.clone(),
         log_topics: stein_core::steinlog::topics(root).into_iter().map(|(key, on)| LogTopic { key, on }).collect(),
         jvm_args: settings.jvm_args.clone(),
+        links,
     }
 }
 
@@ -247,6 +251,8 @@ fn remove_account(app: State<'_, App>, uuid: String) -> Res<()> {
 async fn load_index(app: State<'_, App>) -> Res<()> {
     let index = stein_core::stein::index(&stein_core::net::client(), &app.root).await.map_err(|e| format!("{e:#}"))?;
     stein_core::stein::remember_index(&app.root, &index);
+    // The registry's migrations.json came with the index: a new migration runs now (its notice shows on refresh).
+    let _ = stein_core::sources::migrate(&app.root);
     Ok(())
 }
 
@@ -346,9 +352,18 @@ fn set_log_topic(app: State<'_, App>, key: String, value: bool) -> Res<()> {
     stein_core::steinlog::set_topic(&app.root, &key, value).map_err(err)
 }
 
-/// Developer options: the extra Java arguments, from the next start on.
+/// Developer options: the extra Java arguments, from the next start on. Arguments outside the allowed list
+/// ([`stein_core::launch::registry_arg_allowed`]) are refused here, and dropped at start anyway.
 #[tauri::command]
 fn set_jvm_args(app: State<'_, App>, value: String) -> Res<()> {
+    let rejected = stein_core::launch::rejected_dev_args(&value);
+    if !rejected.is_empty() {
+        return Err(format!(
+            "Argumentos não permitidos: {}. Só valem -Xmx, -Xms, opções -XX: de memória e coleta de lixo, \
+             --enable-native-access= e propriedades -D do Stein (stein., steinbridge., steinloader.).",
+            rejected.join(" ")
+        ));
+    }
     let mut s = Settings::load(&app.root);
     s.jvm_args = value.split_whitespace().collect::<Vec<_>>().join(" ");
     s.save(&app.root).map_err(err)

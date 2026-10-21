@@ -67,7 +67,12 @@ export type AppState = {
     /** Developer options: the Stein log topics (shared with the game's Log tab) and the extra Java arguments. */
     logTopics: LogTopic[]
     jvmArgs: string
+    /** The project's addresses from the Stein registry; empty strings before the first index. */
+    links: Links
 }
+
+/** The Discord invite and the player-head image service (`{uuid}` and `{size}` are filled in). */
+export type Links = { discord: string; heads: string }
 
 /** A Stein log topic, by the key the game stores it under. */
 export type LogTopic = { key: string; on: boolean }
@@ -104,8 +109,18 @@ export const onProgress = (f: (p: Progress) => void): Promise<UnlistenFn> =>
 /** Payload is "running", "closed" or "crashed:<exit code>". */
 export const onGame = (f: (s: string) => void): Promise<UnlistenFn> => listen<string>('game', (e) => f(e.payload))
 
-/** The player's head rendered from their skin (mc-heads.net); offline, callers fall back to the name's initial. */
-export const headUrl = (uuid: string, size = 64) => `https://mc-heads.net/avatar/${uuid}/${size}`
+/** The head image service when the registry has not said one yet. */
+const DEFAULT_HEADS = 'https://mc-heads.net/avatar/{uuid}/{size}'
+let heads = DEFAULT_HEADS
+
+/** Uses the registry's head image service (https only, with `{uuid}`), or goes back to the built-in one. */
+export const setHeads = (template: string | undefined) => {
+    heads = template && template.startsWith('https://') && template.includes('{uuid}') ? template : DEFAULT_HEADS
+}
+
+/** The player's head rendered from their skin; offline, callers fall back to the name's initial. */
+export const headUrl = (uuid: string, size = 64) =>
+    heads.replace('{uuid}', encodeURIComponent(uuid)).replace('{size}', String(size))
 
 /**
  * The launcher is about to update itself to the given version: it swaps its own executable and relaunches it. An
