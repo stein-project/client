@@ -14,6 +14,7 @@
 //! starts the game with the account.
 
 pub mod friendly;
+pub mod graphics;
 pub mod launch;
 pub mod mojang;
 pub mod net;

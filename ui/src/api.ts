@@ -60,6 +60,8 @@ export type AppState = {
     running: boolean
     /** Whether Stein GFX is enabled. */
     gfx: boolean
+    /** The graphics API Stein GFX draws with (Vulkan is experimental). */
+    gfxApi: GfxApi
     /** Third-party mod sources. */
     sources: Source[]
     /** A one-time notice (e.g. a mod that moved to a third-party source). */
@@ -76,6 +78,8 @@ export type Links = { discord: string; heads: string }
 
 /** A Stein log topic, by the key the game stores it under. */
 export type LogTopic = { key: string; on: boolean }
+
+export type GfxApi = 'opengl' | 'vulkan'
 
 export type DeviceCode = { userCode: string; verificationUri: string; expiresIn: number }
 
@@ -95,6 +99,7 @@ export const api = {
     dismissNotice: () => invoke<void>('dismiss_notice'),
     setCloseOnPlay: (value: boolean) => invoke<void>('set_close_on_play', { value }),
     setGfx: (value: boolean) => invoke<void>('set_gfx', { value }),
+    setGfxApi: (value: GfxApi) => invoke<void>('set_gfx_api', { value }),
     setLogTopic: (key: string, value: boolean) => invoke<void>('set_log_topic', { key, value }),
     setJvmArgs: (value: string) => invoke<void>('set_jvm_args', { value }),
     play: (debug = false) => invoke<void>('play', { debug }),

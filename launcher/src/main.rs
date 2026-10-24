@@ -83,6 +83,8 @@ struct StateView {
     running: bool,
     /// Stein GFX enabled.
     gfx: bool,
+    /// The graphics API chosen for Stein GFX: "opengl" or "vulkan".
+    gfx_api: String,
     /// The third-party mod sources that were added.
     sources: Vec<stein_core::sources::Source>,
     /// A one-time notice (the one about the migration to third-party mods).
@@ -152,6 +154,7 @@ fn app_state(app: State<'_, App>) -> StateView {
     StateView {
         // No choice made on the toggle: on, unless this machine says otherwise.
         gfx: stein_core::launch::gfx(&settings),
+        gfx_api: settings.gfx_api.clone(),
         version: stein_core::VERSION.to_string(),
         bridge_version: components.as_ref().map(|c| c.0.clone()),
         loader_library: components.map(|c| c.1),
@@ -342,6 +345,18 @@ fn set_gfx(app: State<'_, App>, value: bool) -> Res<()> {
     s.save(&app.root).map_err(err)
 }
 
+/// The graphics API Stein GFX draws with (the settings choice, after the Vulkan warning): written for the game before
+/// each start, see [`stein_core::graphics`].
+#[tauri::command]
+fn set_gfx_api(app: State<'_, App>, value: String) -> Res<()> {
+    if value != stein_core::graphics::OPENGL && value != stein_core::graphics::VULKAN {
+        return Err(format!("unknown graphics API: {value}"));
+    }
+    let mut s = Settings::load(&app.root);
+    s.gfx_api = value;
+    s.save(&app.root).map_err(err)
+}
+
 /// Developer options: a Stein log topic, in the same file the game's Log tab uses. Not while the game is open: the
 /// game holds the choice then and writes it back when it changes.
 #[tauri::command]
@@ -431,6 +446,8 @@ async fn play_inner(handle: &AppHandle, app: &App, debug: bool) -> Res<()> {
         // GPU without OpenGL 4.1: the game exits on startup with Stein GFX. The launcher records that and relaunches
         // once without it, so the player never sees the error.
         let failed = status.as_ref().ok().and_then(|s| s.code()) != Some(0);
+        // Vulkan (experimental) that closed the game before it showed: back to OpenGL, with a notice.
+        let _ = stein_core::graphics::after_exit(&retry_root, failed);
         if failed && stein_core::launch::gfx_unsupported_crash(&retry_root) {
             let mut s = Settings::load(&retry_root);
             if !s.gfx_unsupported {
@@ -564,6 +581,7 @@ fn main() {
             dismiss_notice,
             set_close_on_play,
             set_gfx,
+            set_gfx_api,
             set_log_topic,
             set_jvm_args,
             play,

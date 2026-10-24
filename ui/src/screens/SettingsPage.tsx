@@ -8,7 +8,7 @@
 
 import { useState } from 'react'
 
-import { api, AppState } from '../api'
+import { api, AppState, GfxApi } from '../api'
 import { ErrorText } from '../components/ErrorText'
 import { Head } from '../components/Head'
 import { SectionHead } from '../components/SectionHead'
@@ -167,6 +167,18 @@ function GameSection({ state, refresh }: { state: AppState; refresh: () => void 
         await api.setGfx(!state.gfx)
         refresh()
     }
+    // Choosing Vulkan shows the warning first; OpenGL applies right away.
+    const [askVulkan, setAskVulkan] = useState(false)
+    const setApi = async (value: GfxApi) => {
+        setAskVulkan(false)
+        await api.setGfxApi(value)
+        refresh()
+    }
+    const pickApi = (value: GfxApi) => {
+        if (value === state.gfxApi) return
+        if (value === 'vulkan') setAskVulkan(true)
+        else setApi(value)
+    }
     return (
         <div className="section">
             <SectionHead n="II" label="Jogo" />
@@ -188,7 +200,35 @@ function GameSection({ state, refresh }: { state: AppState; refresh: () => void 
                     </div>
                     <button className={'toggle' + (state.gfx ? ' toggle--on' : '')} onClick={gfx} aria-label="Stein GFX" />
                 </div>
+                <div className="row">
+                    <div className="row__main">
+                        <div className="row__title">
+                            API gráfica
+                            {state.gfxApi === 'vulkan' && <span className="row__tag">Experimental</span>}
+                        </div>
+                        <div className="row__text">
+                            {state.gfx
+                                ? 'Com qual API o Stein GFX desenha. O OpenGL é o padrão; o Vulkan é experimental. Vale a partir da próxima abertura do jogo.'
+                                : 'Só vale com o Stein GFX ligado. Desligado, o jogo abre com o OpenGL.'}
+                        </div>
+                    </div>
+                    <div className="seg" role="radiogroup" aria-label="API gráfica">
+                        {(['opengl', 'vulkan'] as const).map((value) => (
+                            <button
+                                key={value}
+                                role="radio"
+                                aria-checked={state.gfxApi === value}
+                                className={'seg__opt' + (state.gfxApi === value ? ' seg__opt--on' : '')}
+                                disabled={!state.gfx}
+                                onClick={() => pickApi(value)}
+                            >
+                                {value === 'vulkan' ? 'Vulkan' : 'OpenGL'}
+                            </button>
+                        ))}
+                    </div>
+                </div>
             </div>
+            {askVulkan && <VulkanWarning onConfirm={() => setApi('vulkan')} onCancel={() => setAskVulkan(false)} />}
             <div className="actions">
                 <button className="btn btn-ghost" onClick={() => api.openPath('game')}>
                     <Icon name="folder" size={14} stroke={1.4} />
@@ -201,6 +241,34 @@ function GameSection({ state, refresh }: { state: AppState; refresh: () => void 
                 <button className="btn btn-ghost" onClick={() => api.openPath('logs')}>
                     <Icon name="list" size={14} stroke={1.4} />
                     Abrir logs
+                </button>
+            </div>
+        </div>
+    )
+}
+
+/** The warning shown before Vulkan is chosen: it is experimental. */
+function VulkanWarning({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+    return (
+        <div className="card crash warning" role="alert">
+            <div className="crash__head">
+                <Icon name="shield" size={22} stroke={1.3} />
+                <div className="crash__text">
+                    <div className="crash__title">Usar o Vulkan?</div>
+                    <div className="crash__body">
+                        O Vulkan ainda é experimental. O jogo pode travar ou fechar sozinho, e podem aparecer problemas
+                        de renderização, como texturas, cores ou partes da tela erradas. Se o jogo fechar ao abrir com o
+                        Vulkan, o Stein Client volta sozinho para o OpenGL. Você pode voltar para o OpenGL aqui a
+                        qualquer momento; a troca vale a partir da próxima abertura do jogo.
+                    </div>
+                </div>
+            </div>
+            <div className="actions">
+                <button className="sl-btn sl-btn--accent" onClick={onConfirm}>
+                    Usar o Vulkan
+                </button>
+                <button className="btn btn-ghost" onClick={onCancel}>
+                    Cancelar
                 </button>
             </div>
         </div>
