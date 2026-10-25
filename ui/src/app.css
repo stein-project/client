@@ -182,6 +182,17 @@ body { user-select: none; }
   transition: transform var(--dur-base) var(--ease-standard), background var(--dur-base) var(--ease-out);
 }
 .toggle--on { border-color: var(--accent); background: var(--accent-soft); }
+
+/* A choice between a few options (the graphics API): the same pill and accent as the toggle. */
+.seg { display: flex; flex: none; padding: 2px; border: 0.5px solid var(--rule-strong); border-radius: var(--radius-pill); }
+.seg__opt {
+  padding: 3px 12px; border: 0; border-radius: var(--radius-pill); background: transparent;
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.06em; color: var(--text-muted);
+  transition: background var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
+}
+.seg__opt:hover:not(:disabled) { color: var(--ink); }
+.seg__opt--on { background: var(--accent-soft); color: var(--ink); box-shadow: inset 0 0 0 0.5px var(--accent); }
+.seg__opt:disabled { opacity: 0.45; cursor: default; }
 .toggle--on::after { transform: translateX(18px); background: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
 
 /* ── sign-in ────────────────────────────────────────────────────────────── */

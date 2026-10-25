@@ -293,7 +293,9 @@ pub fn command(root: &Root, session: &Session, client_version: &str, debug: bool
         }
     }
     cmd.arg(format!("-Dstein.client={client_version}"));
-    let settings = crate::settings::Settings::load(root);
+    let mut settings = crate::settings::Settings::load(root);
+    // The graphics API, in the file the Bridge reads when it creates the window: see [`crate::graphics`].
+    crate::graphics::apply(root, &mut settings)?;
     // Stein GFX: see [`gfx`].
     cmd.arg(format!("-Dsteinbridge.gfx={}", gfx(&settings)));
     if debug {
