@@ -345,8 +345,8 @@ fn set_gfx(app: State<'_, App>, value: bool) -> Res<()> {
     s.save(&app.root).map_err(err)
 }
 
-/// The graphics API Stein GFX draws with (the settings choice, after the Vulkan warning): written for the game before
-/// each start, see [`stein_core::graphics`].
+/// The graphics API Stein GFX draws with (the settings choice): written for the game before each start, see
+/// [`stein_core::graphics`].
 #[tauri::command]
 fn set_gfx_api(app: State<'_, App>, value: String) -> Res<()> {
     if value != stein_core::graphics::OPENGL && value != stein_core::graphics::VULKAN {
@@ -446,9 +446,19 @@ async fn play_inner(handle: &AppHandle, app: &App, debug: bool) -> Res<()> {
         // GPU without OpenGL 4.1: the game exits on startup with Stein GFX. The launcher records that and relaunches
         // once without it, so the player never sees the error.
         let failed = status.as_ref().ok().and_then(|s| s.code()) != Some(0);
-        // Vulkan (experimental) that closed the game before it showed: back to OpenGL, with a notice.
-        let _ = stein_core::graphics::after_exit(&retry_root, failed);
-        if failed && stein_core::launch::gfx_unsupported_crash(&retry_root) {
+        // Vulkan that closed the game before it showed: back to OpenGL, with a notice, and the game opens again with
+        // it right away, so the player only sees the game.
+        let vulkan_failed = stein_core::graphics::after_exit(&retry_root, failed).unwrap_or(false);
+        if vulkan_failed {
+            let again = if debug {
+                stein_core::launch_debug(&retry_root, &session)
+            } else {
+                stein_core::launch(&retry_root, &session)
+            };
+            if let Ok(mut c) = again {
+                status = c.wait();
+            }
+        } else if failed && stein_core::launch::gfx_unsupported_crash(&retry_root) {
             let mut s = Settings::load(&retry_root);
             if !s.gfx_unsupported {
                 s.gfx_unsupported = true;

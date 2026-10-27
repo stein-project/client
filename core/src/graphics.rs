@@ -11,9 +11,10 @@
 //! `config/stein-graphics.properties` before each start, and the Stein Bridge reads it there (its video options only
 //! show it).
 //!
-//! Vulkan is experimental. When a start with it dies before showing the game, the Bridge leaves a mark in the same
-//! file: `vulkanStarting` still set (the game closed on the way), or `vulkanCrashed` (the next start went back to
-//! OpenGL because of it). The launcher then switches its choice to OpenGL and tells the player.
+//! Vulkan is the default; OpenGL is only for machines where Vulkan cannot run. When a start with it dies before
+//! showing the game, the Bridge leaves a mark in the same file: `vulkanStarting` still set (the game closed on the
+//! way), or `vulkanCrashed` (the next start went back to OpenGL because of it). The launcher then switches its choice
+//! to OpenGL, opens the game again with it and tells the player.
 
 use std::path::PathBuf;
 
@@ -31,8 +32,8 @@ const STARTING: &str = "vulkanStarting";
 const CRASHED: &str = "vulkanCrashed";
 
 /// What the player reads in the launcher after Vulkan closed the game.
-pub const CRASH_NOTICE: &str = "O jogo fechou ao abrir com o Vulkan, então o Stein Client voltou para o OpenGL. Você \
-                                pode escolher o Vulkan de novo em Ajustes.";
+pub const CRASH_NOTICE: &str = "O jogo fechou ao abrir com o Vulkan neste computador, então o Stein Client abriu com \
+                                o OpenGL. Você pode escolher o Vulkan de novo em Ajustes.";
 
 fn file(root: &Root) -> PathBuf {
     root.dir().join("config").join("stein-graphics.properties")
@@ -164,6 +165,14 @@ mod tests {
         let p = read(&root);
         assert_eq!(get(&p, KEY), Some(VULKAN));
         assert_eq!(get(&p, STARTING), Some("true"));
+    }
+
+    #[test]
+    fn vulkan_by_default() {
+        let root = root("default");
+        let mut s = Settings::default();
+        apply(&root, &mut s).unwrap();
+        assert_eq!(get(&read(&root), KEY), Some(VULKAN));
     }
 
     #[test]

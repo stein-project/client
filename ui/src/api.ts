@@ -60,7 +60,7 @@ export type AppState = {
     running: boolean
     /** Whether Stein GFX is enabled. */
     gfx: boolean
-    /** The graphics API Stein GFX draws with (Vulkan is experimental). */
+    /** The graphics API Stein GFX draws with (Vulkan is the default). */
     gfxApi: GfxApi
     /** Third-party mod sources. */
     sources: Source[]

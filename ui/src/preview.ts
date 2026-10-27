@@ -19,7 +19,7 @@
  * - `?notice`: the one-time notice about a mod that became third-party;
  * - `?offline`: the offline-account form open, with the invalid-nickname error;
  * - `?gfx`: the Stein GFX toggle on;
- * - `?vulkan`: Vulkan chosen as the graphics API;
+ * - `?opengl`: OpenGL chosen as the graphics API;
  * - `?dev`: the developer options open, with a log topic on and an extra Java argument;
  * - `?running`: the game open (the log topics locked in the launcher).
  */
@@ -51,7 +51,7 @@ const state: AppState = {
     dir: 'C:\\Users\\voce\\AppData\\Roaming\\.steinclient',
     hasOwner: !(q.has('login') || q.has('code')),
     gfx: q.has('gfx'),
-    gfxApi: q.has('vulkan') ? 'vulkan' : 'opengl',
+    gfxApi: q.has('opengl') ? 'opengl' : 'vulkan',
     accounts:
         q.has('login') || q.has('code')
             ? []
