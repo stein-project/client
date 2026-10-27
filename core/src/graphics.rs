@@ -30,6 +30,8 @@ pub const VULKAN: &str = "vulkan";
 const KEY: &str = "api";
 const STARTING: &str = "vulkanStarting";
 const CRASHED: &str = "vulkanCrashed";
+/// Vulkan cannot run on this machine (no driver, a GPU or driver too old): the Bridge ran OpenGL and says why.
+const UNSUPPORTED: &str = "vulkanUnsupported";
 
 /// What the player reads in the launcher after Vulkan closed the game.
 pub const CRASH_NOTICE: &str = "O jogo fechou ao abrir com o Vulkan neste computador, então o Stein Client abriu com \
@@ -79,13 +81,19 @@ pub fn api(settings: &Settings) -> &'static str {
     }
 }
 
+/// What the player reads in the launcher after the game found that Vulkan cannot run on this computer.
+pub const UNSUPPORTED_NOTICE: &str =
+    "O Vulkan não roda neste computador (a placa de vídeo ou o driver não têm o que o \
+                                      Stein precisa), então o Stein Client passou a abrir o jogo com o OpenGL. Se \
+                                      você atualizar o driver de vídeo, pode escolher o Vulkan de novo em Ajustes.";
+
 /// Switches the choice back to OpenGL, with the notice, when Vulkan was chosen. True if it switched.
-fn fall_back(root: &Root, settings: &mut Settings) -> Result<bool> {
+fn fall_back(root: &Root, settings: &mut Settings, notice: &str) -> Result<bool> {
     if settings.gfx_api != VULKAN {
         return Ok(false);
     }
     settings.gfx_api = OPENGL.to_string();
-    settings.notice = Some(CRASH_NOTICE.to_string());
+    settings.notice = Some(notice.to_string());
     settings.save(root)?;
     Ok(true)
 }
@@ -95,8 +103,12 @@ fn fall_back(root: &Root, settings: &mut Settings) -> Result<bool> {
 pub fn apply(root: &Root, settings: &mut Settings) -> Result<()> {
     let mut props = read(root);
     if get(&props, CRASHED) == Some("true") {
-        fall_back(root, settings)?;
+        fall_back(root, settings, CRASH_NOTICE)?;
         props.retain(|(k, _)| k != CRASHED);
+    }
+    if get(&props, UNSUPPORTED).is_some() {
+        fall_back(root, settings, UNSUPPORTED_NOTICE)?;
+        props.retain(|(k, _)| k != UNSUPPORTED);
     }
     let api = api(settings);
     match props.iter_mut().find(|(k, _)| k == KEY) {
@@ -111,6 +123,14 @@ pub fn apply(root: &Root, settings: &mut Settings) -> Result<()> {
 /// closed normally (the player quit right away), the mark only goes. True if it switched.
 pub fn after_exit(root: &Root, failed: bool) -> Result<bool> {
     let mut props = read(root);
+    if get(&props, UNSUPPORTED).is_some() {
+        // the game ran with OpenGL because Vulkan cannot run here: the choice follows now, so the settings show it
+        let mut settings = Settings::load(root);
+        fall_back(root, &mut settings, UNSUPPORTED_NOTICE)?;
+        props.retain(|(k, _)| k != UNSUPPORTED);
+        write(root, &props)?;
+        props = read(root);
+    }
     if get(&props, STARTING) != Some("true") {
         return Ok(false);
     }
@@ -118,7 +138,7 @@ pub fn after_exit(root: &Root, failed: bool) -> Result<bool> {
     let mut switched = false;
     if failed {
         let mut settings = Settings::load(root);
-        switched = fall_back(root, &mut settings)?;
+        switched = fall_back(root, &mut settings, CRASH_NOTICE)?;
         if let Some(p) = props.iter_mut().find(|(k, _)| k == KEY) {
             p.1 = OPENGL.to_string();
         }
@@ -165,6 +185,25 @@ mod tests {
         let p = read(&root);
         assert_eq!(get(&p, KEY), Some(VULKAN));
         assert_eq!(get(&p, STARTING), Some("true"));
+    }
+
+    #[test]
+    fn vulkan_unsupported_switches_to_opengl() {
+        let root = root("unsupported");
+        vulkan(&root);
+        std::fs::write(file(&root), "api=opengl\nvulkanUnsupported=old_driver\n").unwrap();
+        // after the game closed: the choice follows at once, without a relaunch
+        assert!(!after_exit(&root, false).unwrap());
+        let s = Settings::load(&root);
+        assert_eq!(s.gfx_api, OPENGL);
+        assert_eq!(s.notice.as_deref(), Some(UNSUPPORTED_NOTICE));
+        assert_eq!(get(&read(&root), UNSUPPORTED), None);
+        // and if the launcher missed it, the next start's apply does the same
+        let mut s = vulkan(&root);
+        std::fs::write(file(&root), "api=opengl\nvulkanUnsupported=no_driver\n").unwrap();
+        apply(&root, &mut s).unwrap();
+        assert_eq!(s.gfx_api, OPENGL);
+        assert_eq!(get(&read(&root), KEY), Some(OPENGL));
     }
 
     #[test]
