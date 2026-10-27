@@ -37,8 +37,7 @@ pub struct Settings {
     /// This machine has no OpenGL 4.1: the game closed on startup with Stein GFX, so the launcher now starts it
     /// without. Holds until the player turns it back on with the toggle.
     pub gfx_unsupported: bool,
-    /// The graphics API Stein GFX draws with, "opengl" (the default) or "vulkan" (experimental): see
-    /// [`crate::graphics`].
+    /// The graphics API Stein GFX draws with, "vulkan" (the default) or "opengl": see [`crate::graphics`].
     pub gfx_api: String,
     /// Migrations already applied in this folder (each runs once).
     pub migrations: Vec<String>,
@@ -57,7 +56,7 @@ impl Default for Settings {
             close_on_play: true,
             gfx: None,
             gfx_unsupported: false,
-            gfx_api: crate::graphics::OPENGL.to_string(),
+            gfx_api: crate::graphics::VULKAN.to_string(),
             migrations: Vec::new(),
             jvm_args: String::new(),
             notice: None,
