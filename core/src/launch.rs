@@ -220,7 +220,7 @@ fn compat_args(root: &Root) -> Vec<String> {
 }
 /// Used if the profile is not found (it should be): the same policy the installer writes.
 const DEFAULT_JAVA_ARGS: &str =
-    "-Xmx3G -Xms256M -XX:SoftMaxHeapSize=768M -XX:+UseZGC -XX:-ZProactive --enable-native-access=ALL-UNNAMED";
+    "-Xmx3G -Xms256M -XX:SoftMaxHeapSize=1024M -XX:+UseZGC -XX:-ZProactive --enable-native-access=ALL-UNNAMED";
 
 /// Builds the game command. `client_version` is passed to the game as `-Dstein.client` (only a marker that the game
 /// came from the Stein Client; the game changes nothing because of it).
@@ -412,7 +412,7 @@ mod tests {
             "-Xms256M",
             "-XX:+UseZGC",
             "-XX:-ZProactive",
-            "-XX:SoftMaxHeapSize=768M",
+            "-XX:SoftMaxHeapSize=1024M",
             "-XX:MaxRAMPercentage=50.0",
             "--enable-native-access=ALL-UNNAMED",
             "-Dsteinbridge.gfx.gpuHeldItem=false",
