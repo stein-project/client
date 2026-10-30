@@ -9,8 +9,8 @@
 //! The Stein registry: the files the project publishes for its programs to read at run time (Stein-Project/registry,
 //! served at [`DEFAULT_BASE`]), instead of baking them into a build. The launcher reads `stein.json` (links, the latest
 //! Loader, news, the official mods enabled by default and their indexes), `mods/<id>.json` (each official mod's
-//! index), `client.json` (its own update), `launch.json` and `compat.json` (the game's Java arguments),
-//! `revoked.json` (mods it must not install) and `migrations.json` (official mods that moved to a third-party source).
+//! index), `client.json` (its own update), `launch.json` and `compat.json` (the game's Java arguments)
+//! and `migrations.json` (mods that changed source). `revoked.json` stays published for older launchers only.
 //!
 //! Every file comes with an ed25519 signature next to it (`<file>.sig`, the base64 of the raw signature over the file's
 //! exact bytes) and is only believed when it matches [`PUBLIC_KEY`]: the registry decides what is downloaded and which
@@ -166,21 +166,12 @@ pub async fn load_json(http: &reqwest::Client, root: &Root, name: &str) -> Resul
 
 /// The files the launcher only reads from its stored copy (when the game starts, at the launcher's start): refreshed
 /// together, each one on its own, ignoring the ones that cannot be read now.
-pub const AUXILIARY: &[&str] = &["launch.json", "compat.json", "revoked.json", "migrations.json"];
+pub const AUXILIARY: &[&str] = &["launch.json", "compat.json", "migrations.json"];
 
 /// Refreshes [`AUXILIARY`]; returns how many arrived.
 pub async fn refresh_auxiliary(http: &reqwest::Client, root: &Root) -> usize {
     let got = futures_util::future::join_all(AUXILIARY.iter().map(|n| fetch(http, root, n))).await;
     got.iter().filter(|r| r.is_ok()).count()
-}
-
-/// Is this mod file revoked (`revoked.json`, by sha256)? Returns the reason.
-pub fn revoked(root: &Root, sha256: &str) -> Option<String> {
-    let json = cached_json(root, "revoked.json")?;
-    json["mods"].as_array()?.iter().find_map(|m| {
-        let sha = m["sha256"].as_str()?;
-        sha.eq_ignore_ascii_case(sha256).then(|| m["reason"].as_str().unwrap_or("").to_string())
-    })
 }
 
 /// Appends a line to one of the launcher's logs (`logs/stein-client/<file>`).
@@ -257,21 +248,5 @@ mod tests {
         assert_eq!(file_of(&format!("{DEFAULT_BASE}mods/hud.json")).as_deref(), Some("mods/hud.json"));
         assert_eq!(file_of("https://github.com/x/y/releases/latest/download/steinmods.json"), None);
         assert_eq!(file_of(&format!("{DEFAULT_BASE}../x.json")), None);
-    }
-
-    #[test]
-    fn revoked_by_sha() {
-        let dir = std::env::temp_dir().join(format!("stein-registry-revoked-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        let root = Root::at(&dir);
-        std::fs::create_dir_all(root.own().join("registry")).unwrap();
-        std::fs::write(
-            root.own().join("registry").join("revoked.json"),
-            format!(r#"{{"schema":1,"mods":[{{"sha256":"{}","reason":"malware"}}]}}"#, "AB".repeat(32)),
-        )
-        .unwrap();
-        assert_eq!(revoked(&root, &"ab".repeat(32)).as_deref(), Some("malware"));
-        assert_eq!(revoked(&root, &"cd".repeat(32)), None);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -39,7 +39,7 @@ use crate::stein::IndexMod;
 /// The `steinmods.json` format this launcher understands.
 pub const FORMAT: u64 = 1;
 
-/// The registry file with the official mods that moved to a third-party source.
+/// The registry file with the mods that changed source.
 const MIGRATIONS_FILE: &str = "migrations.json";
 
 /// One move of official mods to a third-party source (`migrations.json` of the registry). Combat and Mouse left the
@@ -51,7 +51,18 @@ struct Migration {
     /// Who publishes the mods now (shown in the notice and as the source's author).
     #[serde(default)]
     author: String,
+    /// The notice for the player, when the default one (a mod that became third-party) is not what happened.
+    #[serde(default)]
+    notice: String,
     mods: Vec<Moved>,
+}
+
+/// A source that changed address (`sources` in `migrations.json`). Kept apart from the migrations: those run once, and
+/// an older launcher would mark as done something it does not know how to do.
+#[derive(Debug, Clone, Deserialize)]
+struct Repoint {
+    from: String,
+    to: String,
 }
 
 /// A mod that moved: its old id in the official index, the id inside the mod, its name and its new index.
@@ -276,12 +287,42 @@ pub fn remove(root: &Root, url: &str) -> Result<()> {
     Ok(())
 }
 
+/// The sources that changed address, in the registry's stored copy.
+fn repoints(root: &Root) -> Vec<Repoint> {
+    crate::registry::cached_json(root, MIGRATIONS_FILE)
+        .and_then(|j| serde_json::from_value(j["sources"].clone()).ok())
+        .unwrap_or_default()
+}
+
+/// Points the added sources at their new addresses, for whoever still has the old one; nothing changes in the folder,
+/// so the mods stay enabled and with their settings. A source that already has the new address too is just dropped.
+fn repoint(root: &Root) -> Result<()> {
+    let mut list = third_party(root);
+    let before = list.clone();
+    for r in repoints(root) {
+        if !allowed_url(&r.to) {
+            continue;
+        }
+        let has_new = list.iter().any(|s| s.url == r.to);
+        if has_new {
+            list.retain(|s| s.url != r.from);
+        } else if let Some(s) = list.iter_mut().find(|s| s.url == r.from) {
+            s.url = r.to.clone();
+        }
+    }
+    if list != before {
+        save(root, &list)?;
+    }
+    Ok(())
+}
+
 /// Runs each migration of the registry (`migrations.json`) that has not run in this folder yet: anyone with a moved mod
 /// in the folder, enabled, starts receiving it from the new source without a warning, since it is the same author. The
 /// old ids are removed from everyone's list of enabled official mods. Returns the notice to show, when something
 /// changed. Without a registry copy there is nothing to run.
 pub fn migrate(root: &Root) -> Result<Option<String>> {
     let mut last = None;
+    repoint(root)?;
     for m in migrations(root) {
         if let Some(n) = run_migration(root, &m)? {
             last = Some(n);
@@ -320,6 +361,9 @@ fn run_migration(root: &Root, migration: &Migration) -> Result<Option<String>> {
     save(root, &list)?;
     s.migrations.push(migration.id.clone());
     let notice = (!moved.is_empty()).then(|| {
+        if !migration.notice.is_empty() {
+            return migration.notice.clone();
+        }
         let names = moved.join(" e ");
         let verb = if moved.len() > 1 { "agora são mods de terceiros" } else { "agora é um mod de terceiros" };
         let author = &migration.author;
@@ -374,6 +418,41 @@ mod tests {
         z.start_file("steinmod.json", zip::write::SimpleFileOptions::default()).unwrap();
         std::io::Write::write_all(&mut z, format!(r#"{{"id":"{id}","version":"0.1.0"}}"#).as_bytes()).unwrap();
         z.finish().unwrap();
+    }
+
+    #[test]
+    fn a_moved_source_is_repointed_every_time_and_keeps_the_mods() {
+        let (r, dir) = root();
+        std::fs::create_dir_all(r.own().join("registry")).unwrap();
+        std::fs::write(
+            r.own().join("registry").join("migrations.json"),
+            r#"{"schema": 1, "sources": [{"from": "https://old.example/i.json", "to": "https://new.example/i.json"}]}"#,
+        )
+        .unwrap();
+        let old = Source { url: "https://old.example/i.json".into(), name: "Combat".into(), author: "X4vieer".into() };
+        let other = Source { url: "https://other.example/i.json".into(), name: "x".into(), author: "y".into() };
+        save(&r, &[old, other.clone()]).unwrap();
+        let mut s = Settings::load(&r);
+        s.mods.push("steincombat".into());
+        s.save(&r).unwrap();
+
+        assert_eq!(migrate(&r).unwrap(), None);
+        let list = third_party(&r);
+        assert_eq!(list[0].url, "https://new.example/i.json");
+        assert_eq!(list[0].name, "Combat");
+        assert_eq!(list[1], other);
+        assert!(Settings::load(&r).mods.contains(&"steincombat".to_string()));
+
+        // Both addresses in the list (the player added the new one by hand): no duplicate.
+        let mut both = third_party(&r);
+        both.push(Source { url: "https://old.example/i.json".into(), name: "Combat".into(), author: "".into() });
+        save(&r, &both).unwrap();
+        migrate(&r).unwrap();
+        assert_eq!(
+            third_party(&r).iter().filter(|s| s.url.contains("example/i.json") && s.name == "Combat").count(),
+            1
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

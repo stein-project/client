@@ -42,7 +42,7 @@ by hand is a dry run that publishes nothing. After the release, run the `publish
 `client.json`, where launchers after 0.3.2 look for updates; 0.3.1 and 0.3.2 keep reading the release's `update.json`.
 
 Everything else the launcher looks up at run time (the Loader version, the official mods and which are enabled out
-of the box, links, the game's Java arguments, revoked mods, migrations) comes from the registry, signed: see its
+of the box, links, the game's Java arguments, migrations) comes from the registry, signed: see its
 README for the formats. To test against a local copy, set `STEIN_REGISTRY` to its address (an empty value fetches
 nothing and uses the stored copies in `stein-client/registry/`).
 
