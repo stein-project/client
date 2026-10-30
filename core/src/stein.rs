@@ -143,19 +143,6 @@ pub async fn index(http: &reqwest::Client, root: &Root) -> Result<Index> {
             index.mods.push(m);
         }
     }
-    // Revoked (malicious or broken): never downloaded. A copy already in the folder is the player's and stays; with
-    // the mod out of the index the launcher simply stops touching it.
-    index.mods.retain(|m| match registry::revoked(root, &m.sha256) {
-        Some(why) => {
-            registry::note(
-                root,
-                "launcher.log",
-                &format!("{} {} is revoked ({why}): not installed", m.name, m.version),
-            );
-            false
-        }
-        None => true,
-    });
     Ok(index)
 }
 

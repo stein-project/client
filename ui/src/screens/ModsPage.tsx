@@ -103,12 +103,13 @@ export function ModsPage({ state, refresh, index }: { state: AppState; refresh: 
             <OfficialSection mods={official} index={index} onToggle={toggle} />
 
             <div className="section">
-                <SectionHead n="II" label="De terceiros" />
+                <SectionHead n="II" label="Adições" />
                 {state.notice && <NoticeCard notice={state.notice} refresh={refresh} />}
                 {state.sources.length === 0 && !pasting && (
                     <p className="note">
-                        Mods de outros autores, atualizados como os oficiais: adicione a fonte com o link do índice de mods
-                        (steinmods.json) que o autor publica.
+                        Mods fora do padrão, atualizados como os outros: adicione a fonte com o link do índice de mods
+                        (steinmods.json) que o autor publica. Alguns servidores proíbem certos mods: confira as regras
+                        de onde você joga.
                     </p>
                 )}
                 {state.sources.map((s) => (
@@ -300,11 +301,12 @@ function SourceWarning({
             <div className="crash__head">
                 <Icon name="shield" size={22} stroke={1.3} />
                 <div className="crash__text">
-                    <div className="crash__title">Adicionar mods de terceiros?</div>
+                    <div className="crash__title">Adicionar esta fonte?</div>
                     <div className="crash__body">
-                        Estes mods não são do Stein e não são revisados pela equipe. Um mod roda com o mesmo
-                        acesso que o jogo tem ao seu computador: ele pode ler seus arquivos e as contas salvas no
-                        Minecraft. Adicione só fontes de autores em quem você confia.
+                        Estes mods não vêm com o Stein. Um mod roda com o mesmo acesso que o jogo tem ao seu
+                        computador: ele pode ler seus arquivos e as contas salvas no Minecraft. Adicione só fontes de
+                        autores em quem você confia. Alguns servidores proíbem certos mods, e a responsabilidade de
+                        conferir as regras é sua.
                     </div>
                     <dl className="kv warning__kv">
                         <dt>Fonte</dt>

@@ -16,7 +16,7 @@ use crate::paths::Root;
 
 /// Official mods enabled out of the box when the registry has not said which (`defaultMods` in its `stein.json`): only
 /// a reserve for a first start without internet.
-pub const DEFAULT_MODS: &[&str] = &["hud", "connect", "keybind", "replay"];
+pub const DEFAULT_MODS: &[&str] = &["hud", "connect", "replay"];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
