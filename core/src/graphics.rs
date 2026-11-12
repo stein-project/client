@@ -6,10 +6,10 @@
  * Copyright (c) 2026 Breno Xavier
  */
 
-//! The graphics API Stein GFX draws with (OpenGL or Vulkan), chosen in the launcher's settings. The game creates its
-//! window for one API, so the choice is made before it opens: the launcher writes it to
-//! `config/stein-graphics.properties` before each start, and the Stein Bridge reads it there (its video options only
-//! show it).
+//! The graphics API Stein GFX draws with (OpenGL or Vulkan), chosen in the launcher's settings or in the game's video
+//! settings. The game creates its window for one API, so the choice counts from the next start: the launcher writes it
+//! to `config/stein-graphics.properties` before each start, and the Stein Bridge reads it there. A choice made in the
+//! game comes back under its own key (`chosenInGame`): the launcher adopts it as its own before writing.
 //!
 //! Vulkan is the default; OpenGL is only for machines where Vulkan cannot run. When a start with it dies before
 //! showing the game, the Bridge leaves a mark in the same file: `vulkanStarting` still set (the game closed on the
@@ -32,6 +32,8 @@ const STARTING: &str = "vulkanStarting";
 const CRASHED: &str = "vulkanCrashed";
 /// Vulkan cannot run on this machine (no driver, a GPU or driver too old): the Bridge ran OpenGL and says why.
 const UNSUPPORTED: &str = "vulkanUnsupported";
+/// The API picked in the game's video settings, for the next start (`SteinBackend.choose`).
+const CHOSEN: &str = "chosenInGame";
 
 /// What the player reads in the launcher after Vulkan closed the game.
 pub const CRASH_NOTICE: &str = "O jogo fechou ao abrir com o Vulkan neste computador, então o Stein Client abriu com \
@@ -87,6 +89,19 @@ pub const UNSUPPORTED_NOTICE: &str =
                                       Stein precisa), então o Stein Client passou a abrir o jogo com o OpenGL. Se \
                                       você atualizar o driver de vídeo, pode escolher o Vulkan de novo em Ajustes.";
 
+/// A choice made in the game's video settings becomes the launcher's own, and its key goes: from then on the launcher
+/// writes it like any other choice, and changing it in the launcher's settings works again.
+fn adopt(root: &Root, settings: &mut Settings, props: &mut Vec<(String, String)>) -> Result<()> {
+    if let Some(v) = get(props, CHOSEN).map(str::to_string) {
+        if (v == VULKAN || v == OPENGL) && settings.gfx_api != v {
+            settings.gfx_api = v;
+            settings.save(root)?;
+        }
+        props.retain(|(k, _)| k != CHOSEN);
+    }
+    Ok(())
+}
+
 /// Switches the choice back to OpenGL, with the notice, when Vulkan was chosen. True if it switched.
 fn fall_back(root: &Root, settings: &mut Settings, notice: &str) -> Result<bool> {
     if settings.gfx_api != VULKAN {
@@ -102,6 +117,7 @@ fn fall_back(root: &Root, settings: &mut Settings, notice: &str) -> Result<bool>
 /// written for the game. The other keys stay (a `vulkanStarting` still there is the Bridge's to handle).
 pub fn apply(root: &Root, settings: &mut Settings) -> Result<()> {
     let mut props = read(root);
+    adopt(root, settings, &mut props)?;
     if get(&props, CRASHED) == Some("true") {
         fall_back(root, settings, CRASH_NOTICE)?;
         props.retain(|(k, _)| k != CRASHED);
@@ -123,6 +139,12 @@ pub fn apply(root: &Root, settings: &mut Settings) -> Result<()> {
 /// closed normally (the player quit right away), the mark only goes. True if it switched.
 pub fn after_exit(root: &Root, failed: bool) -> Result<bool> {
     let mut props = read(root);
+    if get(&props, CHOSEN).is_some() {
+        // the player changed the API in the game: the launcher's settings show it right away
+        let mut settings = Settings::load(root);
+        adopt(root, &mut settings, &mut props)?;
+        write(root, &props)?;
+    }
     if get(&props, UNSUPPORTED).is_some() {
         // the game ran with OpenGL because Vulkan cannot run here: the choice follows now, so the settings show it
         let mut settings = Settings::load(root);
@@ -204,6 +226,34 @@ mod tests {
         apply(&root, &mut s).unwrap();
         assert_eq!(s.gfx_api, OPENGL);
         assert_eq!(get(&read(&root), KEY), Some(OPENGL));
+    }
+
+    #[test]
+    fn the_choice_made_in_the_game_is_adopted() {
+        let root = root("ingame");
+        let mut s = vulkan(&root);
+        std::fs::write(file(&root), "api=opengl\nchosenInGame=opengl\n").unwrap();
+        apply(&root, &mut s).unwrap();
+        assert_eq!(s.gfx_api, OPENGL);
+        assert_eq!(Settings::load(&root).gfx_api, OPENGL);
+        let p = read(&root);
+        assert_eq!(get(&p, KEY), Some(OPENGL));
+        assert_eq!(get(&p, CHOSEN), None);
+        // and back to Vulkan from the game, seen as soon as the game closes
+        std::fs::write(file(&root), "api=vulkan\nchosenInGame=vulkan\n").unwrap();
+        assert!(!after_exit(&root, false).unwrap());
+        assert_eq!(Settings::load(&root).gfx_api, VULKAN);
+        assert_eq!(get(&read(&root), CHOSEN), None);
+    }
+
+    #[test]
+    fn an_unknown_choice_from_the_game_is_dropped() {
+        let root = root("ingame-bad");
+        let mut s = vulkan(&root);
+        std::fs::write(file(&root), "api=vulkan\nchosenInGame=directx\n").unwrap();
+        apply(&root, &mut s).unwrap();
+        assert_eq!(s.gfx_api, VULKAN);
+        assert_eq!(get(&read(&root), CHOSEN), None);
     }
 
     #[test]
