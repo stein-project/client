@@ -10,6 +10,12 @@ description = "Stein Client: the launcher for original Minecraft 1.8.9 with the 
 name = "SteinClient"
 path = "src/main.rs"
 
+# Extra fields of the executable's version info (Properties > Details), read by tauri-winres under tauri-build; the
+# product name, description, version, company and copyright come from tauri.conf.json.
+[package.metadata.tauri-winres]
+OriginalFilename = "SteinClient.exe"
+InternalName = "SteinClient"
+
 [build-dependencies]
 tauri-build.workspace = true
 

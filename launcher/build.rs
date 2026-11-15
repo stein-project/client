@@ -11,5 +11,7 @@ fn main() {
     // and the .exe ships with the old icon.
     println!("cargo:rerun-if-changed=icons");
     println!("cargo:rerun-if-changed=tauri.conf.json");
+    // The version info also takes fields from [package.metadata.tauri-winres].
+    println!("cargo:rerun-if-changed=Cargo.toml");
     tauri_build::build()
 }
