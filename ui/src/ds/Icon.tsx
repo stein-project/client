@@ -17,7 +17,7 @@ export type IconName =
     | 'check' | 'layers' | 'shield' | 'down'
     | 'play' | 'restart' | 'force' | 'plus' | 'gear' | 'trash' | 'x' | 'list' | 'cards' | 'star'
     // Stein Client additions (same construction: stroke only, 24x24)
-    | 'folder' | 'minus' | 'logout' | 'maximize' | 'restore'
+    | 'folder' | 'minus' | 'logout' | 'maximize' | 'restore' | 'info'
 
 const dot = (cx: number, cy: number, r: number) => (
     <circle cx={cx} cy={cy} r={r} fill="currentColor" stroke="none" />
@@ -57,6 +57,7 @@ const SHAPES: Record<string, React.ReactNode> = {
         <rect x={4} y={13.5} width={6.5} height={6.5} rx={1} />
         <rect x={13.5} y={13.5} width={6.5} height={6.5} rx={1} />
     </>),
+    info: (<><circle cx={12} cy={12} r={8.5} /><path d="M12 11v5.5" />{dot(12, 7.8, 0.95)}</>),
     star: (<><polygon points="12,3 14.5,9 21,9.5 16,14 17.5,20.5 12,17 6.5,20.5 8,14 3,9.5 9.5,9" /></>),
     // ── Stein Client ──
     folder: (<><path d="M3.5 7V18.5h17V9H11L9 6.5H3.5z" /><line x1={3.5} y1={11} x2={20.5} y2={11} /></>),

@@ -169,6 +169,8 @@ fn parse(url: &str, raw: &serde_json::Value, third_party: bool) -> Result<Fetche
             .unwrap_or_default()
     };
     let mods = read(&raw["mods"]);
+    // The test versions a test release adds to an index without a history ("test" block of the stable index).
+    let tests = read(&raw["test"]["mods"]);
     let name = text("name");
     let mut out = Vec::new();
     for mut m in mods {
@@ -181,6 +183,34 @@ fn parse(url: &str, raw: &serde_json::Value, third_party: bool) -> Result<Fetche
             m.id = m.mod_id.clone();
             m.source_name = if name.is_empty() { m.name.clone() } else { name.clone() };
         }
+        if m.versions.is_empty() {
+            m.versions = tests
+                .iter()
+                .filter(|t| t.mod_id == m.mod_id)
+                .cloned()
+                .map(|mut t| {
+                    t.test = true;
+                    t
+                })
+                .collect();
+        }
+        m.versions = std::mem::take(&mut m.versions)
+            .into_iter()
+            .filter_map(|mut v| {
+                // A version is the same mod: its ids, file and source are the current entry's.
+                v.id = m.id.clone();
+                v.mod_id = m.mod_id.clone();
+                v.file = m.file.clone();
+                v.source = m.source.clone();
+                v.third_party = m.third_party;
+                v.source_name = m.source_name.clone();
+                v.versions.clear();
+                if v.description.is_empty() {
+                    v.description = m.description.clone();
+                }
+                valid_mod(&v).then_some(v)
+            })
+            .collect();
         out.push(m);
     }
     Ok(Fetched { url: url.to_string(), name, author: text("author"), homepage: text("homepage"), mods: out })
@@ -271,8 +301,15 @@ pub fn add(root: &Root, f: &Fetched) -> Result<()> {
     s.save(root)
 }
 
-/// Removes a third-party source. Its mods stay in the folder as they are: they just stop being updated.
+/// Removes a third-party source and its mods from the folder (the mod files only: their settings stay).
 pub fn remove(root: &Root, url: &str) -> Result<()> {
+    // Its mods leave the folder first (the files only, never their settings): if one cannot be removed (the game is
+    // open), nothing changes.
+    if let Some(index) = crate::stein::cached_index(root) {
+        let files: Vec<String> = index.mods.iter().filter(|m| m.source == url).map(|m| m.mod_id.clone()).collect();
+        crate::stein::remove_mod_files(root, &files)
+            .map_err(|e| anyhow!("Feche o jogo para remover esta fonte ({e:#})."))?;
+    }
     let mut list = third_party(root);
     list.retain(|s| s.url != url);
     save(root, &list)?;
@@ -482,6 +519,31 @@ mod tests {
         assert!(f.mods[0].third_party);
         assert_eq!(f.mods[0].source, "https://e/steinmods.json");
         assert_eq!(f.mods[0].source_name, "Source");
+    }
+
+    #[test]
+    fn history_or_test_block_become_versions() {
+        let mut test = entry("good", "Good.steinmod");
+        test["version"] = "1.1-rc.1".into();
+        // An index without a history: the current version plus the one in the "test" block.
+        let raw = serde_json::json!({"mods": [entry("good", "Good.steinmod")], "test": {"mods": [test.clone()]}});
+        let f = parse("https://e/steinmods.json", &raw, true).unwrap();
+        let v = crate::versions::versions_of(&f.mods[0]);
+        let seen: Vec<(&str, bool)> = v.iter().map(|v| (v.version.as_str(), v.test)).collect();
+        assert_eq!(seen, [("1.1-rc.1", true), ("1.0", false)]);
+        assert_eq!(v[0].id, "good"); // a version is the same mod, with the same ids
+                                     // A history wins over the test block; a broken entry in it is dropped.
+        let mut old = entry("good", "Good.steinmod");
+        old["version"] = "0.9".into();
+        let mut broken = entry("good", "Good.steinmod");
+        broken["version"] = "0.8".into();
+        broken["sha256"] = "x".into();
+        let mut cur = entry("good", "Good.steinmod");
+        cur["versions"] = serde_json::json!([entry("good", "Good.steinmod"), old, broken]);
+        let raw = serde_json::json!({"mods": [cur], "test": {"mods": [test]}});
+        let f = parse("https://e/steinmods.json", &raw, true).unwrap();
+        let v = crate::versions::versions_of(&f.mods[0]);
+        assert_eq!(v.iter().map(|v| v.version.as_str()).collect::<Vec<_>>(), ["1.0", "0.9"]);
     }
 
     #[test]

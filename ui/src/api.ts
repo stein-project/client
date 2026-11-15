@@ -32,6 +32,36 @@ export type ModView = {
     thirdParty: boolean
     sourceName: string
     source: string
+    /** The version the next Play installs is a test one. */
+    test: boolean
+    /** The next Play installs an older version than the one in the folder (test versions turned off). */
+    older: boolean
+    /** No version works with the chosen Stein Loader: the Loader it asks for (the file stays as it is). */
+    needsLoader: string | null
+}
+/** One release in the "Novidades" page: a version of the pack (`id` "pack") or of a mod. */
+export type ChangeView = {
+    id: string
+    name: string
+    version: string
+    /** YYYY-MM-DD, or empty. */
+    date: string
+    /** The version the next Play installs (or keeps). */
+    inUse: boolean
+    /** A mod the player added (an extra or another author's): shown in its own tab. */
+    thirdParty: boolean
+    /** Markdown. */
+    notes: string
+}
+/** A mod the installed Stein Loader may not run (the check before the game opens); it never blocks. */
+export type ModWarning = {
+    modId: string
+    name: string
+    version: string
+    /** What the mod uses that the Loader does not have ("Render.text(String, int, int)"). */
+    missing: string[]
+    /** A known break written down in the registry, in the player's language. */
+    reason: string | null
 }
 /** Something the next Play installs (from is null), updates, or removes (to is null). */
 export type Change = { id: string; name: string; from: string | null; to: string | null; thirdParty: boolean }
@@ -71,6 +101,25 @@ export type AppState = {
     jvmArgs: string
     /** The project's addresses from the Stein registry; empty strings before the first index. */
     links: Links
+    /** The Stein version the next Play installs when it is a test one; null otherwise. */
+    testPack: string | null
+    /** "Versões de teste": the newest test versions of the Stein and of the mods. */
+    testVersions: boolean
+    /** What the next Play runs. */
+    run: RunView
+}
+
+/** What the next Play runs, for the summary under the button. */
+export type RunView = {
+    /** The Stein version; null before the registry was read. */
+    stein: string | null
+    test: boolean
+    /** The game's Java ("25.0.4.1"); null before it is installed. */
+    java: string | null
+    /** Stein GFX (the new renderer) or the fixed pipeline. */
+    gfx: boolean
+    api: GfxApi
+    memoryGb: number
 }
 
 /** The Discord invite and the player-head image service (`{uuid}` and `{size}` are filled in). */
@@ -97,12 +146,19 @@ export const api = {
     addSource: (url: string) => invoke<void>('add_source', { url }),
     removeSource: (url: string) => invoke<void>('remove_source', { url }),
     dismissNotice: () => invoke<void>('dismiss_notice'),
+    setTestVersions: (value: boolean) => invoke<void>('set_test_versions', { value }),
+    /** Every release with notes, newest first (the "Novidades" page). */
+    changelog: () => invoke<ChangeView[]>('changelog'),
     setCloseOnPlay: (value: boolean) => invoke<void>('set_close_on_play', { value }),
     setGfx: (value: boolean) => invoke<void>('set_gfx', { value }),
     setGfxApi: (value: GfxApi) => invoke<void>('set_gfx_api', { value }),
     setLogTopic: (key: string, value: boolean) => invoke<void>('set_log_topic', { key, value }),
     setJvmArgs: (value: string) => invoke<void>('set_jvm_args', { value }),
-    play: (debug = false) => invoke<void>('play', { debug }),
+    /**
+     * Prepares and opens the game. Mods the installed Stein Loader may not run come back instead, with the game closed;
+     * `anyway` opens it with them (and the same warnings do not ask again).
+     */
+    play: (debug = false, anyway = false) => invoke<ModWarning[]>('play', { debug, anyway }),
     openCrashLog: () => invoke<void>('open_crash_log'),
     openPath: (kind: 'game' | 'mods' | 'logs' | 'steinlogs' | 'screenshots') => invoke<void>('open_path', { kind }),
     openUrl: (url: string) => invoke<void>('open_url', { url }),

@@ -46,6 +46,12 @@ pub struct Settings {
     /// Developer options: extra Java arguments for the game (the Stein `-D` flags), added last so they win over the
     /// launcher's own.
     pub jvm_args: String,
+    /// "Versões de teste": the next Play installs the newest test version of the pack and of each mod, when one is
+    /// ahead of the stable one; off, the stable ones.
+    pub test_versions: bool,
+    /// The mod warnings the player chose to play with anyway ([`crate::modcheck::signature`]): the same ones do not ask
+    /// again; a new mod, version or Loader does.
+    pub accepted_warnings: Option<String>,
 }
 
 impl Default for Settings {
@@ -60,6 +66,8 @@ impl Default for Settings {
             migrations: Vec::new(),
             jvm_args: String::new(),
             notice: None,
+            test_versions: false,
+            accepted_warnings: None,
         }
     }
 }

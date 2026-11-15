@@ -14,18 +14,21 @@ import { Window } from './components/Window'
 import { Logo, Monogram } from './ds/Brand'
 import { Icon, IconName } from './ds/Icon'
 import { previewCrash, previewPage } from './preview'
+import { AccountsPage } from './screens/AccountsPage'
+import { ChangelogPage } from './screens/ChangelogPage'
 import { Login } from './screens/Login'
 import { IndexStatus, ModsPage } from './screens/ModsPage'
 import { PlayPage } from './screens/PlayPage'
 import { SettingsPage } from './screens/SettingsPage'
 
-type Page = 'play' | 'mods' | 'settings'
+type Page = 'play' | 'mods' | 'settings' | 'changelog' | 'accounts'
 
-/** The sidebar pages, numbered like the page headings (ModsPage "II", SettingsPage "III"). */
+/** The sidebar pages, numbered like the page headings (ModsPage "II", ChangelogPage "III", SettingsPage "IV"). */
 const NAV: { id: Page; label: string; idx: string; icon: IconName }[] = [
     { id: 'play', label: 'Jogar', idx: 'I', icon: 'play' },
     { id: 'mods', label: 'Mods', idx: 'II', icon: 'layers' },
-    { id: 'settings', label: 'Ajustes', idx: 'III', icon: 'gear' },
+    { id: 'changelog', label: 'Novidades', idx: 'III', icon: 'list' },
+    { id: 'settings', label: 'Ajustes', idx: 'IV', icon: 'gear' },
 ]
 
 export function App() {
@@ -120,7 +123,11 @@ export function App() {
                         />
                     </div>
                     {page === 'mods' && <ModsPage state={state} refresh={refresh} index={index} />}
-                    {page === 'settings' && <SettingsPage state={state} refresh={refresh} onAdd={() => setAdding(true)} />}
+                    {page === 'settings' && <SettingsPage state={state} refresh={refresh} />}
+                    {page === 'changelog' && <ChangelogPage state={state} />}
+                    {page === 'accounts' && (
+                        <AccountsPage state={state} refresh={refresh} onAdd={() => setAdding(true)} />
+                    )}
                 </main>
             </div>
         </Window>
@@ -159,7 +166,11 @@ function Sidebar({ page, setPage, current }: { page: Page; setPage: (page: Page)
                         <div className="who__kind">{current.offline ? 'Offline' : 'Microsoft'}</div>
                     </div>
                 </div>
-                <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => setPage('settings')}>
+                <button
+                    className={'btn btn-ghost' + (page === 'accounts' ? ' who__btn--on' : '')}
+                    style={{ width: '100%' }}
+                    onClick={() => setPage('accounts')}
+                >
                     Contas
                 </button>
             </div>

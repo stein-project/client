@@ -16,6 +16,7 @@
 pub mod friendly;
 pub mod graphics;
 pub mod launch;
+pub mod modcheck;
 pub mod mojang;
 pub mod net;
 pub mod paths;
@@ -26,6 +27,7 @@ pub mod sources;
 pub mod stein;
 pub mod steinlog;
 pub mod update;
+pub mod versions;
 
 pub use stein_client_auth as auth;
 
@@ -74,9 +76,12 @@ pub async fn prepare(root: &Root, report: &Report) -> Result<Prepared> {
     stein::remember_index(root, &index);
     // The index refreshed the registry's migrations.json: one that arrived now runs before the mods are synced.
     sources::migrate(root)?;
-    let mods = Settings::load(root).mods;
-    stein::ensure(root, &index, &mods, report).await?;
-    Ok(Prepared { loader: index.loader.clone(), offline: false })
+    // The versions the player chose (or the latest that work together): see versions::plan.
+    let settings = Settings::load(root);
+    let plan = versions::plan_for(root, &index, &settings);
+    stein::ensure(root, &plan.index, &settings.mods, report).await?;
+    stein::remove_disabled(root, &index.mods, &settings.mods)?;
+    Ok(Prepared { loader: plan.index.loader.clone(), offline: false })
 }
 
 /// The game options Stein picked (graphics, keys, sound...) for first-time players in this folder. The player's file

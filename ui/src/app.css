@@ -345,3 +345,74 @@ body { user-select: none; }
 .warning { margin-top: 8px; }
 .warning .crash__head > svg { color: var(--gold); }
 .warning__kv { margin-top: 14px; grid-template-columns: 110px 1fr; }
+
+/* ── versions ──────────────────────────────────────────────────────────────
+   The version picker (latest, or a fixed one) with the "i" for its notes, and the notes panel over the page. */
+.vpick { display: flex; flex: none; align-items: center; gap: 6px; }
+.vpick__select { max-width: 260px; padding: 6px 10px; font-size: 11px; cursor: pointer; }
+.vpick__select--wide { max-width: 400px; }
+.vpick__select option { background: var(--surface-raised); color: var(--ink); }
+.vpick__select option:disabled { color: var(--text-faint); }
+.vpick__info { flex: none; padding: 6px 8px; }
+.row__meta { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.06em; color: var(--text-faint); margin-top: 4px; }
+.row__tag--test { border-color: color-mix(in oklab, var(--gold) 55%, var(--rule)); color: var(--gold); }
+.row__tag--warn { border-color: color-mix(in oklab, #e0708a 55%, var(--rule)); color: #e0708a; }
+
+.md { color: var(--text-muted); font-size: 15px; line-height: 1.5; }
+.md p { margin: 0 0 12px; }
+.md > :first-child { margin-top: 0; }
+.md h3 { font-family: var(--font-display); font-weight: 400; font-size: 18px; color: var(--ink); margin: 18px 0 8px; }
+.md ul { margin: 0 0 12px; padding-left: 18px; display: grid; gap: 8px; }
+.md strong { color: var(--ink); font-weight: 500; }
+.md code { font-family: var(--font-mono); font-size: 12px; color: var(--ink); }
+
+/* ── Novidades: the changelog, like the site's ─────────────────────────────── */
+.clog__head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.clog__tabs { display: flex; gap: 22px; border-bottom: 0.5px solid var(--rule); margin-bottom: 16px; }
+.clog__tab {
+  padding: 0 0 10px; margin-bottom: -0.5px; border: 0; border-bottom: 1.5px solid transparent; background: transparent; cursor: pointer;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint);
+}
+.clog__tab:hover { color: var(--ink); }
+.clog__tab--on { color: var(--ink); border-bottom-color: var(--accent); }
+.clog__note { margin: -4px 0 14px; }
+.clog__filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.clog__filter {
+  padding: 5px 12px; border: 0.5px solid var(--rule); border-radius: 999px; background: transparent; cursor: pointer;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted);
+}
+.clog__filter:hover { color: var(--ink); border-color: var(--rule-strong); }
+.clog__filter--on { color: var(--ink); border-color: color-mix(in oklab, var(--accent) 60%, var(--rule)); background: color-mix(in oklab, var(--accent) 12%, transparent); }
+.clog { list-style: none; margin: 0; padding: 0; }
+.clog__entry {
+  display: grid; grid-template-columns: 130px 1fr; gap: 28px; padding: 26px 0; border-top: 0.5px solid var(--rule);
+  scroll-margin-top: 12px; animation: enter-fade var(--dur-base) var(--ease-out) both;
+}
+.clog__meta {
+  display: flex; flex-direction: column; gap: 6px; align-self: start; position: sticky; top: 16px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-faint);
+}
+.clog__tag { color: var(--accent); text-transform: uppercase; letter-spacing: 0.14em; }
+.clog__ver { font-family: var(--font-display); font-size: 24px; letter-spacing: 0; color: var(--ink); line-height: 1.1; word-break: break-word; }
+.clog__badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.clog__badge { margin-left: 0; width: max-content; }
+.clog__body { min-width: 0; user-select: text; }
+.clog__title { font-family: var(--font-display); font-weight: 400; font-size: 22px; line-height: 1.25; color: var(--ink); margin: 0 0 12px; }
+
+/* The warning before the game opens: mods the installed Loader may not run. */
+.mwarn { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+.mwarn li { display: grid; gap: 3px; }
+.mwarn__name { color: var(--ink); }
+.mwarn__name .mono { text-transform: none; color: var(--gold); font-size: 11px; margin-left: 4px; }
+.mwarn__reason { color: var(--text-muted); }
+.mwarn__missing { text-transform: none; font-size: 10.5px; letter-spacing: 0.02em; color: var(--text-faint); word-break: break-word; }
+
+
+
+/* What the next Play runs: one quiet line under the button. */
+.runinfo { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 2px 0 0; }
+.runinfo__item { display: flex; flex-direction: column; gap: 3px; }
+.runinfo dt { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); }
+.runinfo dd { margin: 0; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+.runinfo__tag { margin-left: 0; }
+.who__btn--on { color: var(--ink); border-color: var(--rule-strong); }

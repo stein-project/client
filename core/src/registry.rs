@@ -18,8 +18,8 @@
 //! The verified copy is kept in `stein-client/registry/` and is what applies without internet, or when a new copy
 //! arrives without a valid signature or with a `schema` this launcher does not know.
 //!
-//! `STEIN_REGISTRY` (environment) reads another address (a local copy, for tests); an empty value fetches nothing and
-//! keeps the stored copies.
+//! `STEIN_REGISTRY` (environment) reads another address (a local copy, for tests); an empty value or `off` fetches
+//! nothing and keeps the stored copies (a `.cmd` on Windows cannot set an empty variable).
 
 use std::path::PathBuf;
 
@@ -43,11 +43,11 @@ pub const SCHEMA: u64 = 1;
 /// Cap on a registry file: they are a handful of lines, and there is no reason to accept more.
 const LIMIT: usize = 512 * 1024;
 
-/// The registry address in use, always ending in `/`; `None` when `STEIN_REGISTRY` is set and empty (no fetching).
+/// The registry address in use, always ending in `/`; `None` when `STEIN_REGISTRY` is empty or `off` (no fetching).
 pub fn base() -> Option<String> {
     let base = std::env::var("STEIN_REGISTRY").unwrap_or_else(|_| DEFAULT_BASE.to_string());
     let base = base.trim();
-    if base.is_empty() {
+    if base.is_empty() || base.eq_ignore_ascii_case("off") {
         return None;
     }
     Some(if base.ends_with('/') { base.to_string() } else { format!("{base}/") })
@@ -55,10 +55,11 @@ pub fn base() -> Option<String> {
 
 /// The registry file name behind a URL of the registry (`mods/hud.json`), or `None` for any other address. The
 /// official address counts too when another one is in use: `stein.json` names files by the official address, and they
-/// are read from the registry in use (a local copy, or the registry after a move).
+/// are read from the registry in use (a local copy, or the registry after a move). With the registry turned off they
+/// still name the stored copies.
 pub fn file_of(url: &str) -> Option<String> {
-    let base = base()?;
-    let name = url.strip_prefix(&base).or_else(|| url.strip_prefix(DEFAULT_BASE))?;
+    let base = base();
+    let name = base.as_deref().and_then(|b| url.strip_prefix(b)).or_else(|| url.strip_prefix(DEFAULT_BASE))?;
     valid_name(name).then(|| name.to_string())
 }
 
@@ -112,7 +113,7 @@ pub async fn fetch(http: &reqwest::Client, root: &Root, name: &str) -> Result<Ve
     if !valid_name(name) {
         bail!("not a registry file: {name}");
     }
-    let base = base().ok_or_else(|| anyhow!("the registry is turned off (STEIN_REGISTRY is empty)"))?;
+    let base = base().ok_or_else(|| anyhow!("the registry is turned off (STEIN_REGISTRY is empty or off)"))?;
     let url = format!("{base}{name}");
     let (body, sig) = futures_util::future::join(net::fetch(http, &url), net::fetch(http, &format!("{url}.sig"))).await;
     let (body, sig) = (body?, sig?);
@@ -166,7 +167,7 @@ pub async fn load_json(http: &reqwest::Client, root: &Root, name: &str) -> Resul
 
 /// The files the launcher only reads from its stored copy (when the game starts, at the launcher's start): refreshed
 /// together, each one on its own, ignoring the ones that cannot be read now.
-pub const AUXILIARY: &[&str] = &["launch.json", "compat.json", "migrations.json"];
+pub const AUXILIARY: &[&str] = &["launch.json", "compat.json", "migrations.json", "breaks.json"];
 
 /// Refreshes [`AUXILIARY`]; returns how many arrived.
 pub async fn refresh_auxiliary(http: &reqwest::Client, root: &Root) -> usize {

@@ -57,6 +57,12 @@ struct ModView {
     third_party: bool,
     source_name: String,
     source: String,
+    /// The version the next Play installs is a test one.
+    test: bool,
+    /// The next Play installs an older version than the one in the folder (test versions turned off).
+    older: bool,
+    /// No version works with the chosen Stein Loader: the Loader the mod asks for (the file stays as it is).
+    needs_loader: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -94,6 +100,30 @@ struct StateView {
     jvm_args: String,
     /// The project's addresses from the registry (Discord invite, player-head images); empty before the first index.
     links: stein_core::stein::Links,
+    /// The pack the next "Play" installs, when it is a test one (its version).
+    test_pack: Option<String>,
+    /// What the next "Play" runs, for the summary under the button.
+    run: RunView,
+    /// "Versões de teste".
+    test_versions: bool,
+}
+
+/// What the next "Play" runs: the Stein version, the Java, the renderer and the memory.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RunView {
+    /// The Stein version (the pack) the next Play installs or keeps; none before the registry was read.
+    stein: Option<String>,
+    /// It is a test version.
+    test: bool,
+    /// The game's Java ("25.0.4.1"); none before it is installed.
+    java: Option<String>,
+    /// Stein GFX (the new renderer) or the fixed pipeline, its fallback.
+    gfx: bool,
+    /// "vulkan" or "opengl" (the fixed pipeline is always OpenGL).
+    api: String,
+    /// The game's memory, in GB.
+    memory_gb: u32,
 }
 
 /// A Stein log topic and whether it is on.
@@ -129,26 +159,25 @@ fn app_state(app: State<'_, App>) -> StateView {
         .or_else(|| accounts.first().map(|a| a.uuid.clone()));
     let index = stein_core::stein::cached_index(root);
     let files = stein_core::stein::mod_files(root);
-    let updates = index.as_ref().map(|i| stein_core::stein::pending(root, i, &settings.mods)).unwrap_or_default();
-    let mods = index
-        .as_ref()
-        .map(|i| {
-            i.mods
-                .iter()
-                .map(|m| ModView {
-                    id: m.id.clone(),
-                    name: m.name.clone(),
-                    version: m.version.clone(),
-                    description: m.description.clone(),
-                    enabled: settings.mods.contains(&m.id),
-                    installed_version: files.get(&m.mod_id).cloned(),
-                    third_party: m.third_party,
-                    source_name: m.source_name.clone(),
-                    source: m.source.clone(),
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    let plan = index.as_ref().map(|i| stein_core::versions::plan_for(root, i, &settings));
+    let updates = plan.as_ref().map(|p| stein_core::stein::pending(root, &p.index, &settings.mods)).unwrap_or_default();
+    let mods = match (&index, &plan) {
+        (Some(i), Some(p)) => i.mods.iter().map(|m| mod_view(m, p, &settings.mods, &files)).collect(),
+        _ => Vec::new(),
+    };
+    let test_pack = plan.as_ref().and_then(|p| p.pack.as_ref()).filter(|p| p.test).map(|p| p.version.clone());
+    let gfx = stein_core::launch::gfx(&settings);
+    let run = RunView {
+        stein: plan
+            .as_ref()
+            .and_then(|p| p.pack.as_ref().map(|p| p.version.clone()))
+            .or_else(|| index.as_ref().map(|i| i.loader.clone())),
+        test: test_pack.is_some(),
+        java: stein_core::stein::java_version(root),
+        gfx,
+        api: if gfx { settings.gfx_api.clone() } else { stein_core::graphics::OPENGL.to_string() },
+        memory_gb: stein_core::launch::ram_gb(root),
+    };
     let components = stein_core::stein::components(root);
     let links = index.as_ref().map(|i| i.links.clone()).unwrap_or_default();
     StateView {
@@ -175,6 +204,38 @@ fn app_state(app: State<'_, App>) -> StateView {
         log_topics: stein_core::steinlog::topics(root).into_iter().map(|(key, on)| LogTopic { key, on }).collect(),
         jvm_args: settings.jvm_args.clone(),
         links,
+        run,
+        test_pack,
+        test_versions: settings.test_versions,
+    }
+}
+
+/// A mod of the index as the Mods page shows it: at the version the plan chose.
+fn mod_view(
+    m: &stein_core::stein::IndexMod,
+    plan: &stein_core::versions::Plan,
+    enabled: &[String],
+    files: &std::collections::HashMap<String, String>,
+) -> ModView {
+    let chosen = plan.index.mods.iter().find(|c| c.id == m.id);
+    let version = chosen.map(|c| c.version.clone()).unwrap_or_else(|| m.version.clone());
+    let installed_version = files.get(&m.mod_id).cloned();
+    let older = installed_version
+        .as_deref()
+        .is_some_and(|i| stein_core::versions::compare(i, &version) == std::cmp::Ordering::Greater);
+    ModView {
+        id: m.id.clone(),
+        name: m.name.clone(),
+        test: chosen.is_some_and(|c| c.test),
+        older,
+        version,
+        description: m.description.clone(),
+        enabled: enabled.contains(&m.id),
+        installed_version,
+        third_party: m.third_party,
+        source_name: m.source_name.clone(),
+        source: m.source.clone(),
+        needs_loader: plan.blocked.iter().find(|b| b.id == m.id).map(|b| b.needs_loader.clone()),
     }
 }
 
@@ -291,6 +352,9 @@ async fn inspect_source(app: State<'_, App>, text: String) -> Res<SourcePreview>
             third_party: true,
             source_name: m.source_name.clone(),
             source: m.source.clone(),
+            test: false,
+            older: false,
+            needs_loader: None,
         })
         .collect();
     if mods.is_empty() {
@@ -313,10 +377,89 @@ async fn add_source(app: State<'_, App>, url: String) -> Res<()> {
     Ok(())
 }
 
-/// Removes the third-party source: its mods stay in the folder but no longer get updates.
+/// Removes the third-party source and its mod files (their settings stay).
 #[tauri::command]
 fn remove_source(app: State<'_, App>, url: String) -> Res<()> {
     stein_core::sources::remove(&app.root, &url).map_err(err)
+}
+
+/// "Versões de teste": the next Play installs the newest test versions (on) or goes back to the stable ones (off).
+#[tauri::command]
+fn set_test_versions(app: State<'_, App>, value: bool) -> Res<()> {
+    let mut s = Settings::load(&app.root);
+    s.test_versions = value;
+    s.save(&app.root).map_err(err)
+}
+
+/// One release in the launcher's "Novidades" page: a version of the pack (`id` "pack") or of a mod, with its notes.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ChangeView {
+    id: String,
+    name: String,
+    version: String,
+    date: String,
+    /// The version the next Play installs (or keeps).
+    in_use: bool,
+    /// A mod the player added (an extra or another author's), not one that comes with the Stein: its own tab.
+    third_party: bool,
+    /// The notes in Markdown (pt_BR, else en_US).
+    notes: String,
+}
+
+/// Every stable release the launcher knows with notes, newest first: the packs, each mod of the list and the extras not
+/// added. Test versions never show.
+#[tauri::command]
+fn changelog(app: State<'_, App>) -> Vec<ChangeView> {
+    let root = &app.root;
+    let Some(index) = stein_core::stein::cached_index(root) else { return Vec::new() };
+    let settings = Settings::load(root);
+    let plan = stein_core::versions::plan_for(root, &index, &settings);
+    let pack_in_use = plan.pack.as_ref().map(|p| p.version.clone());
+    let mut out = Vec::new();
+    for p in &index.packs {
+        let in_use = pack_in_use.as_deref() == Some(p.version.as_str());
+        // Test versions (release candidates) never show here: only what came out for everyone.
+        if p.test {
+            continue;
+        }
+        if let Some(notes) = stein_core::versions::notes(&p.changelog) {
+            let (id, name) = ("pack".to_string(), "Stein".to_string());
+            out.push(ChangeView {
+                id,
+                name,
+                version: p.version.clone(),
+                date: p.date.clone(),
+                in_use,
+                third_party: false,
+                notes,
+            });
+        }
+    }
+    // The mods in the list, then the official extras not added (their notes only, none in use).
+    for m in index.mods.iter().chain(&index.extras) {
+        let chosen = plan.index.mods.iter().find(|c| c.id == m.id).map(|c| c.version.clone());
+        for v in stein_core::versions::versions_of(m) {
+            let in_use = chosen.as_deref() == Some(v.version.as_str());
+            if v.test {
+                continue;
+            }
+            if let Some(notes) = stein_core::versions::notes(&v.changelog) {
+                let (id, name, third_party) = (m.id.clone(), m.name.clone(), m.third_party);
+                let (version, date) = (v.version, v.date);
+                out.push(ChangeView { id, name, version, date, in_use, third_party, notes });
+            }
+        }
+    }
+    // Newest first; on the same day the pack comes before the mods, then by name and higher versions first.
+    out.sort_by(|a, b| {
+        b.date
+            .cmp(&a.date)
+            .then_with(|| (b.id == "pack").cmp(&(a.id == "pack")))
+            .then_with(|| a.name.cmp(&b.name))
+            .then_with(|| stein_core::versions::compare(&b.version, &a.version))
+    });
+    out
 }
 
 #[tauri::command]
@@ -389,19 +532,32 @@ fn set_jvm_args(app: State<'_, App>, value: String) -> Res<()> {
 /// too (or comes back, if it was only minimised); if the game crashes, the launcher comes back and shows what to do.
 /// `debug`: with Stein logging enabled (offered after a crash).
 #[tauri::command]
-async fn play(handle: AppHandle, app: State<'_, App>, debug: Option<bool>) -> Res<()> {
+async fn play(
+    handle: AppHandle,
+    app: State<'_, App>,
+    debug: Option<bool>,
+    anyway: Option<bool>,
+) -> Res<Vec<stein_core::modcheck::Warning>> {
     if app.running.load(Ordering::Relaxed) {
         return Err("O jogo já está aberto.".into());
     }
     if app.busy.swap(true, Ordering::SeqCst) {
         return Err("O jogo já está sendo preparado.".into());
     }
-    let result = play_inner(&handle, &app, debug.unwrap_or(false)).await;
+    let result = play_inner(&handle, &app, debug.unwrap_or(false), anyway.unwrap_or(false)).await;
     app.busy.store(false, Ordering::SeqCst);
     result
 }
 
-async fn play_inner(handle: &AppHandle, app: &App, debug: bool) -> Res<()> {
+/// Prepares and opens the game. Mods the installed Loader may not run come back as warnings instead, with the game
+/// closed, unless the player already chose to play with those same ones (`anyway`, or an earlier choice): it never
+/// blocks, the player decides.
+async fn play_inner(
+    handle: &AppHandle,
+    app: &App,
+    debug: bool,
+    anyway: bool,
+) -> Res<Vec<stein_core::modcheck::Warning>> {
     let root = app.root.clone();
     let settings = Settings::load(&root);
     let store = stein_core::accounts(&root);
@@ -414,6 +570,26 @@ async fn play_inner(handle: &AppHandle, app: &App, debug: bool) -> Res<()> {
         store.accounts().into_iter().find(|a| a.uuid == uuid).ok_or("Entre com uma conta Microsoft primeiro.")?;
     let report = reporter(handle);
     stein_core::prepare(&root, &report).await.map_err(|e| stein_core::friendly::logged(&root, "launcher.log", &e))?;
+    report(Progress::new("Conferindo os mods"));
+    if let (Some(loader), warnings) = stein_core::modcheck::check(&root) {
+        if !warnings.is_empty() {
+            let sig = stein_core::modcheck::signature(&loader, &warnings);
+            if anyway {
+                let mut s = Settings::load(&root);
+                s.accepted_warnings = Some(sig);
+                s.save(&root).map_err(err)?;
+            } else if settings.accepted_warnings.as_deref() != Some(sig.as_str()) {
+                for w in &warnings {
+                    let line = format!(
+                        "{} {} with Stein Loader {loader}: missing {:?}; known break: {:?}",
+                        w.mod_id, w.version, w.missing, w.reason
+                    );
+                    stein_core::registry::note(&root, "launcher.log", &line);
+                }
+                return Ok(warnings);
+            }
+        }
+    }
     let session = if account.offline {
         // An offline account only launches with an original account confirmed by Microsoft (or, without internet,
         // confirmed recently).
@@ -492,7 +668,7 @@ async fn play_inner(handle: &AppHandle, app: &App, debug: bool) -> Res<()> {
             let _ = w.set_focus();
         }
     });
-    Ok(())
+    Ok(Vec::new())
 }
 
 #[tauri::command]
@@ -589,6 +765,8 @@ fn main() {
             add_source,
             remove_source,
             dismiss_notice,
+            set_test_versions,
+            changelog,
             set_close_on_play,
             set_gfx,
             set_gfx_api,

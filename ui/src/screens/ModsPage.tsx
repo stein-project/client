@@ -17,21 +17,40 @@ import { Icon } from '../ds/Icon'
 /** Whether the official mod index has loaded. */
 export type IndexStatus = 'loading' | 'ok' | 'offline'
 
-/** One mod with its version, pending change and on/off toggle. */
-function ModRow({ m, onToggle }: { m: ModView; onToggle: (id: string, enabled: boolean) => void }) {
+/** What a mod row can do: turn the mod on or off. */
+type RowActions = {
+    onToggle: (id: string, enabled: boolean) => void
+}
+
+/** One mod with its version, pending change, version picker and on/off toggle. */
+function ModRow({ m, onToggle }: { m: ModView } & RowActions) {
+    const blocked = m.enabled && m.needsLoader !== null
     return (
         <div className="row">
             <div className="row__main">
                 <div className="row__title">
                     {m.name}
                     <span className="mono">v{m.installedVersion ?? m.version}</span>
-                    {m.enabled && !m.installedVersion && <span className="row__tag">Será instalado</span>}
-                    {m.enabled && m.installedVersion && m.installedVersion !== m.version && (
-                        <span className="row__tag row__tag--update">Atualiza para v{m.version}</span>
+                    {m.test && <span className="row__tag row__tag--test">Teste</span>}
+                    {blocked ? (
+                        <span className="row__tag row__tag--warn">Incompatível</span>
+                    ) : (
+                        <>
+                            {m.enabled && !m.installedVersion && <span className="row__tag">Será instalado</span>}
+                            {m.enabled && m.installedVersion && m.installedVersion !== m.version && (
+                                <span className="row__tag row__tag--update">
+                                    {m.older ? `Volta para v${m.version}` : `Atualiza para v${m.version}`}
+                                </span>
+                            )}
+                        </>
                     )}
                     {!m.enabled && m.installedVersion && <span className="row__tag">Será removido</span>}
                 </div>
-                <div className="row__text">{m.description}</div>
+                <div className="row__text">
+                    {blocked
+                        ? 'Ainda não funciona com esta versão do Stein. Fica como está até sair uma versão compatível.'
+                        : m.description}
+                </div>
             </div>
             <button
                 className={'toggle' + (m.enabled ? ' toggle--on' : '')}
@@ -48,11 +67,20 @@ function hostOf(url: string): string {
 }
 
 /** The Mods page: official mods, third-party sources, and the add-source flow with its safety warning. */
-export function ModsPage({ state, refresh, index }: { state: AppState; refresh: () => void; index: IndexStatus }) {
+export function ModsPage({
+    state,
+    refresh,
+    index,
+}: {
+    state: AppState
+    refresh: () => void
+    index: IndexStatus
+}) {
     const toggle = async (id: string, enabled: boolean) => {
         await api.setMod(id, enabled)
         refresh()
     }
+    const actions: RowActions = { onToggle: toggle }
     const official = state.mods.filter((m) => !m.thirdParty)
     // Pasting a source: the raw text, the parsed source (for the warning) and whether a request is in flight.
     const [pasting, setPasting] = useState(false)
@@ -100,16 +128,15 @@ export function ModsPage({ state, refresh, index }: { state: AppState; refresh: 
                 <p className="page__lead">Escolha os mods que quer usar. Eles são baixados e atualizados ao clicar em Jogar.</p>
             </div>
 
-            <OfficialSection mods={official} index={index} onToggle={toggle} />
+            <OfficialSection mods={official} index={index} actions={actions} />
 
             <div className="section">
                 <SectionHead n="II" label="Adições" />
                 {state.notice && <NoticeCard notice={state.notice} refresh={refresh} />}
                 {state.sources.length === 0 && !pasting && (
                     <p className="note">
-                        Mods fora do padrão, atualizados como os outros: adicione a fonte com o link do índice de mods
-                        (steinmods.json) que o autor publica. Alguns servidores proíbem certos mods: confira as regras
-                        de onde você joga.
+                        Mods de outros autores, atualizados como os outros. Cole o link do steinmods.json que o autor
+                        publica. Confira se o servidor permite.
                     </p>
                 )}
                 {state.sources.map((s) => (
@@ -123,7 +150,7 @@ export function ModsPage({ state, refresh, index }: { state: AppState; refresh: 
                         onAskRemove={() => setRemoving(s.url)}
                         onCancelRemove={() => setRemoving(null)}
                         onRemove={() => remove(s.url)}
-                        onToggle={toggle}
+                        actions={actions}
                     />
                 ))}
 
@@ -154,15 +181,7 @@ export function ModsPage({ state, refresh, index }: { state: AppState; refresh: 
 }
 
 /** The official mods, or why the list is not there yet. */
-function OfficialSection({
-    mods,
-    index,
-    onToggle,
-}: {
-    mods: ModView[]
-    index: IndexStatus
-    onToggle: (id: string, enabled: boolean) => void
-}) {
+function OfficialSection({ mods, index, actions }: { mods: ModView[]; index: IndexStatus; actions: RowActions }) {
     return (
         <div className="section">
             <SectionHead n="I" label="Oficiais" />
@@ -175,7 +194,7 @@ function OfficialSection({
             ) : (
                 <div className="rows">
                     {mods.map((m) => (
-                        <ModRow key={m.id} m={m} onToggle={onToggle} />
+                        <ModRow key={m.id} m={m} {...actions} />
                     ))}
                 </div>
             )}
@@ -193,7 +212,7 @@ function SourceCard({
     onAskRemove,
     onCancelRemove,
     onRemove,
-    onToggle,
+    actions,
 }: {
     s: Source
     mods: ModView[]
@@ -203,7 +222,7 @@ function SourceCard({
     onAskRemove: () => void
     onCancelRemove: () => void
     onRemove: () => void
-    onToggle: (id: string, enabled: boolean) => void
+    actions: RowActions
 }) {
     // A single-mod source named after its mod: the mod row already shows the name, so don't repeat it.
     const same = mods.length === 1 && mods[0].name.toLowerCase() === s.name.toLowerCase()
@@ -231,14 +250,14 @@ function SourceCard({
                 )}
             </div>
             {removing && (
-                <p className="note">Os mods desta fonte ficam na pasta de mods, mas deixam de ser atualizados.</p>
+                <p className="note">Os mods desta fonte saem da pasta de mods. As configurações deles ficam guardadas.</p>
             )}
             {mods.length === 0 ? (
                 <p className="note">{index === 'loading' ? 'Lendo a fonte…' : 'Não foi possível ler esta fonte agora.'}</p>
             ) : (
                 <div className="rows">
                     {mods.map((m) => (
-                        <ModRow key={m.id} m={m} onToggle={onToggle} />
+                        <ModRow key={m.id} m={m} {...actions} />
                     ))}
                 </div>
             )}
@@ -303,10 +322,8 @@ function SourceWarning({
                 <div className="crash__text">
                     <div className="crash__title">Adicionar esta fonte?</div>
                     <div className="crash__body">
-                        Estes mods não vêm com o Stein. Um mod roda com o mesmo acesso que o jogo tem ao seu
-                        computador: ele pode ler seus arquivos e as contas salvas no Minecraft. Adicione só fontes de
-                        autores em quem você confia. Alguns servidores proíbem certos mods, e a responsabilidade de
-                        conferir as regras é sua.
+                        Estes mods não vêm com o Stein e têm o mesmo acesso que o jogo: podem ler seus arquivos e suas
+                        contas. Só adicione de quem você confia, e confira se o servidor permite.
                     </div>
                     <dl className="kv warning__kv">
                         <dt>Fonte</dt>
