@@ -8,12 +8,12 @@
 
 import { useEffect, useState } from 'react'
 
-import { api, AppState, Change, News, onGame, onProgress, Progress } from '../api'
+import { api, AppState, Change, ModWarning, News, onGame, onProgress, Progress, RunView } from '../api'
 import { ErrorText } from '../components/ErrorText'
 import { NoticeCard } from '../components/NoticeCard'
 import { Logo } from '../ds/Brand'
 import { Icon } from '../ds/Icon'
-import { previewBusy, previewError } from '../preview'
+import { previewBusy, previewError, previewWarnings } from '../preview'
 
 /** The Play page: launch button, download progress, crash report, pending updates, notice and news. */
 export function PlayPage({
@@ -35,6 +35,10 @@ export function PlayPage({
     const [busy, setBusy] = useState(previewBusy)
     const [error, setError] = useState(previewError)
     const [running, setRunning] = useState(state.running)
+    // Mods the installed Loader may not run: the game stays closed until the player chooses.
+    const [warnings, setWarnings] = useState<{ list: ModWarning[]; debug: boolean } | null>(
+        previewWarnings.length ? { list: previewWarnings, debug: false } : null,
+    )
 
     useEffect(() => {
         const un1 = onProgress(setProgress)
@@ -48,12 +52,14 @@ export function PlayPage({
         }
     }, [refresh])
 
-    const play = async (debug = false) => {
+    const play = async (debug = false, anyway = false) => {
         setError('')
+        setWarnings(null)
         onDismissCrash()
         setBusy(true)
         try {
-            await api.play(debug)
+            const list = await api.play(debug, anyway)
+            if (list.length > 0) setWarnings({ list, debug })
         } catch (e) {
             const msg = String(e)
             if (msg === 'login') {
@@ -94,8 +100,17 @@ export function PlayPage({
                     </>
                 )}
                 {!busy && running && <div className="status">O jogo está aberto.</div>}
+                <RunSummary run={state.run} />
                 {error && <ErrorText error={error} />}
             </div>
+
+            {warnings && !busy && !running && (
+                <ModWarningsCard
+                    warnings={warnings.list}
+                    onPlay={() => play(warnings.debug, true)}
+                    onCancel={() => setWarnings(null)}
+                />
+            )}
 
             {crash !== null && !busy && !running && (
                 <CrashCard
@@ -115,7 +130,32 @@ export function PlayPage({
     )
 }
 
-/** The logo, the tagline and the Loader and mod-count tags. */
+/** What the next Play runs, in one quiet line under the button: Stein, Java, graphics and memory. */
+function RunSummary({ run }: { run: RunView }) {
+    const graphics = run.gfx ? `Stein GFX · ${run.api === 'vulkan' ? 'Vulkan' : 'OpenGL'}` : 'Fixo · OpenGL'
+    const items: [string, string][] = [
+        ['Stein', run.stein ?? '—'],
+        // The game always runs on the bundled Java 25.
+        ['Java', run.java ? run.java.split('.')[0] : '25'],
+        ['Gráficos', graphics],
+        ['Memória', `${run.memoryGb} GB`],
+    ]
+    return (
+        <dl className="runinfo">
+            {items.map(([k, v]) => (
+                <div key={k} className="runinfo__item">
+                    <dt>{k}</dt>
+                    <dd>
+                        {v}
+                        {k === 'Stein' && run.test && <span className="row__tag row__tag--test runinfo__tag">Teste</span>}
+                    </dd>
+                </div>
+            ))}
+        </dl>
+    )
+}
+
+/** The logo, the tagline and the install-state and mod-count tags (the versions are in the summary under Play). */
 function Hero({ state }: { state: AppState }) {
     const enabled = state.mods.filter((m) => m.enabled).length
     return (
@@ -127,7 +167,7 @@ function Hero({ state }: { state: AppState }) {
                 <div className="tags">
                     <span className="sl-tag sl-tag--pill">
                         <span className={'sl-tag__dot' + (state.ready ? ' sl-tag__dot--live' : '')} />
-                        {state.loader ? `Stein Loader ${state.loader}` : 'Instalação pendente'}
+                        {state.ready ? 'Pronto' : 'Não instalado'}
                     </span>
                     <span className="sl-tag sl-tag--pill sl-tag--ritual">{enabled} {enabled === 1 ? 'mod ativo' : 'mods ativos'}</span>
                 </div>
@@ -155,10 +195,9 @@ function CrashCard({
             <div className="crash__head">
                 <Icon name="force" size={22} stroke={1.3} />
                 <div className="crash__text">
-                    <div className="crash__title">O jogo foi encerrado inesperadamente</div>
+                    <div className="crash__title">O jogo fechou com um erro</div>
                     <div className="crash__body">
-                        Se o problema se repetir, reinicie com os logs do Stein ativos e envie o arquivo de log
-                        no Discord do Stein Labs. Assim a equipe consegue encontrar a causa.
+                        Se acontecer de novo, reinicie com os logs do Stein e mande o arquivo no Discord.
                     </div>
                     <div className="crash__code">Código de saída {crash}</div>
                 </div>
@@ -177,6 +216,58 @@ function CrashCard({
                 </button>
                 <button className="btn btn-ghost" onClick={() => api.openUrl(discordUrl(state))}>
                     Discord do Stein Labs
+                </button>
+            </div>
+        </div>
+    )
+}
+
+/** How many missing items each mod lists before "e mais N". */
+const MISSING_SHOWN = 4
+
+/**
+ * The check before the game opens found mods the installed Stein Loader may not run. It only warns: the player plays
+ * anyway or goes back to change a version.
+ */
+function ModWarningsCard({ warnings, onPlay, onCancel }: { warnings: ModWarning[]; onPlay: () => void; onCancel: () => void }) {
+    const one = warnings.length === 1
+    return (
+        <div className="card crash" role="alert">
+            <div className="crash__head">
+                <Icon name="force" size={22} stroke={1.3} />
+                <div className="crash__text">
+                    <div className="crash__title">
+                        {one ? `${warnings[0].name} pode não funcionar` : `${warnings.length} mods podem não funcionar`}
+                    </div>
+                    <div className="crash__body">
+                        {one ? 'Foi feito' : 'Foram feitos'} para outra versão do Stein e {one ? 'pode' : 'podem'} falhar ou
+                        fechar o jogo. Você pode jogar assim mesmo ou desligar em Mods.
+                    </div>
+                    <ul className="mwarn">
+                        {warnings.map((w) => (
+                            <li key={w.modId}>
+                                <span className="mwarn__name">
+                                    {w.name} <span className="mono">v{w.version}</span>
+                                </span>
+                                {w.reason && <span className="mwarn__reason">{w.reason}</span>}
+                                {w.missing.length > 0 && (
+                                    <span className="mwarn__missing mono">
+                                        {w.missing.slice(0, MISSING_SHOWN).join(' · ')}
+                                        {w.missing.length > MISSING_SHOWN && ` · e mais ${w.missing.length - MISSING_SHOWN}`}
+                                    </span>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            </div>
+            <div className="actions">
+                <button className="sl-btn sl-btn--accent" onClick={onPlay}>
+                    <Icon name="play" size={14} stroke={1.5} />
+                    Jogar assim mesmo
+                </button>
+                <button className="btn btn-ghost" onClick={onCancel}>
+                    Voltar
                 </button>
             </div>
         </div>

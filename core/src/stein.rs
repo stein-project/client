@@ -77,6 +77,21 @@ pub struct IndexMod {
     /// The third-party source's name.
     #[serde(default)]
     pub source_name: String,
+    /// The Stein Loader library this version needs at least; empty: any.
+    #[serde(default)]
+    pub loader: String,
+    /// A test version (a pre-release): only offered with test versions on, and only installed when picked.
+    #[serde(default)]
+    pub test: bool,
+    /// The day this version came out (YYYY-MM-DD), when the index says.
+    #[serde(default)]
+    pub date: String,
+    /// This version's release notes by language, in Markdown.
+    #[serde(default)]
+    pub changelog: BTreeMap<String, String>,
+    /// Every version the index offers, this one included ([`crate::versions`]); empty in an index without a history.
+    #[serde(default)]
+    pub versions: Vec<IndexMod>,
 }
 
 /// The index's news item (the notice in the game menu), in the player's language.
@@ -98,9 +113,15 @@ pub struct Links {
 }
 
 /// The published index.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Index {
     pub loader: String,
+    /// The release tag to install, when it is not `v<loader>` (a test pack: "v0.1.45-rc.1"); see [`crate::versions`].
+    #[serde(default)]
+    pub tag: String,
+    /// The pack history the player can choose from (`packs.json` of the registry), newest first.
+    #[serde(default)]
+    pub packs: Vec<crate::versions::Pack>,
     pub mods: Vec<IndexMod>,
     #[serde(default)]
     pub news: Option<News>,
@@ -109,12 +130,20 @@ pub struct Index {
     /// The official mods enabled for someone who never chose (`defaultMods`); empty in an older index.
     #[serde(default)]
     pub default_mods: Vec<String>,
+    /// The official extras (`extras` in `stein.json`: Keybind, Minimap, Mouse, Combat) the player has not added: only
+    /// their release notes show (Novidades, Adições tab); nothing installs them until the player adds them in Mods.
+    #[serde(default)]
+    pub extras: Vec<IndexMod>,
 }
 
 impl Index {
     /// The Loader release tag for this index.
     pub fn loader_tag(&self) -> String {
-        format!("v{}", self.loader)
+        if self.tag.is_empty() {
+            format!("v{}", self.loader)
+        } else {
+            self.tag.clone()
+        }
     }
 }
 
@@ -122,18 +151,27 @@ impl Index {
 /// third-party ones; a third-party mod with the id of an official one is left out, and so is a revoked one. The
 /// registry's other files (launch, compat, revoked, migrations) are refreshed along with it.
 pub async fn index(http: &reqwest::Client, root: &Root) -> Result<Index> {
-    let (raw, _) = futures_util::future::join(
+    let (raw, _, packs) = futures_util::future::join3(
         registry::load_json(http, root, INDEX_FILE),
         registry::refresh_auxiliary(http, root),
+        registry::load_json(http, root, crate::versions::PACKS_FILE),
     )
     .await;
     let raw = raw?;
     let mut index = parse_index(&raw)?;
-    let previous = cached_index(root).map(|i| i.mods).unwrap_or_default();
-    let official: Vec<String> = raw["sources"]
-        .as_array()
-        .map(|a| a.iter().filter_map(|u| u.as_str()).filter(|u| official_source(root, u)).map(str::to_string).collect())
-        .unwrap_or_default();
+    // Without the pack history (an older registry, or never read) only the latest version is offered.
+    index.packs = packs.map(|p| crate::versions::parse_packs(&p)).unwrap_or_default();
+    let cached = cached_index(root).unwrap_or_default();
+    let previous = cached.mods;
+    let registry_list = |key: &str| -> Vec<String> {
+        raw[key]
+            .as_array()
+            .map(|a| {
+                a.iter().filter_map(|u| u.as_str()).filter(|u| official_source(root, u)).map(str::to_string).collect()
+            })
+            .unwrap_or_default()
+    };
+    let official = registry_list("sources");
     if !official.is_empty() {
         index.mods = sources::gather(http, root, &official, false, &previous).await;
     }
@@ -141,6 +179,12 @@ pub async fn index(http: &reqwest::Client, root: &Root) -> Result<Index> {
     for m in sources::gather(http, root, &third, true, &previous).await {
         if !index.mods.iter().any(|o| o.mod_id == m.mod_id || o.id == m.id) {
             index.mods.push(m);
+        }
+    }
+    // The extras the player has not added, for their release notes only.
+    for m in sources::gather(http, root, &registry_list("extras"), true, &cached.extras).await {
+        if !index.mods.iter().any(|o| o.mod_id == m.mod_id || o.id == m.id) {
+            index.extras.push(m);
         }
     }
     Ok(index)
@@ -186,7 +230,7 @@ fn parse_index(raw: &serde_json::Value) -> Result<Index> {
         .as_array()
         .map(|a| a.iter().filter_map(|m| m.as_str()).map(str::to_string).collect())
         .unwrap_or_default();
-    Ok(Index { loader, mods, news, links, default_mods })
+    Ok(Index { loader, mods, news, links, default_mods, ..Index::default() })
 }
 
 /// The name of this OS's Java 25 asset in the release.
@@ -263,6 +307,27 @@ pub fn installed(root: &Root) -> Option<Installed> {
 /// Versions of the mods in the mods folder, keyed by the id inside each `.steinmod` (its steinmod.json).
 pub fn mod_files(root: &Root) -> std::collections::HashMap<String, String> {
     mod_paths(root).into_iter().map(|(id, (v, _))| (id, v)).collect()
+}
+
+/// Removes from the mods folder the `.steinmod` of each mod (by the id inside it): only the mod file, never its
+/// settings (`config/`), so it comes back as it was if the player turns it on again. A file the game holds open (on
+/// Windows, while it runs) stops the removal with an error.
+pub fn remove_mod_files(root: &Root, mod_ids: &[String]) -> Result<()> {
+    for (id, (_, path)) in mod_paths(root) {
+        if mod_ids.contains(&id) {
+            std::fs::remove_file(&path).with_context(|| format!("could not remove {}", path.display()))?;
+        }
+    }
+    Ok(())
+}
+
+/// Removes the files of the mods of the list that are off. [`sync_mods`] does it for the mods of the plan; this also
+/// covers the ones the plan leaves out (no version works with the Loader). Files of no mod on the list (put there by
+/// hand) are never touched.
+pub fn remove_disabled(root: &Root, mods: &[IndexMod], enabled: &[String]) -> Result<()> {
+    let off: Vec<String> =
+        mods.iter().filter(|m| !m.mod_id.is_empty() && !enabled.contains(&m.id)).map(|m| m.mod_id.clone()).collect();
+    remove_mod_files(root, &off)
 }
 
 /// The mods in the folder: id inside the `.steinmod` -> (version, file).
@@ -624,6 +689,13 @@ pub fn unzip(zip: &Path, dir: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// The version of the game's Java ("25.0.4.1"), from the `release` file of the bundled runtime; none before it is
+/// installed.
+pub fn java_version(root: &Root) -> Option<String> {
+    let release = std::fs::read_to_string(root.versions().join(VERSION_ID).join("runtime").join("release")).ok()?;
+    release.lines().find_map(|l| l.strip_prefix("JAVA_VERSION=")).map(|v| v.trim().trim_matches('"').to_string())
 }
 
 /// The game's Java (no console), used to start it.

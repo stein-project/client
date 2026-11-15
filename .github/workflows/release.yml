@@ -26,6 +26,12 @@
 # No test versions: the launcher has no test channel. Running the same tag again publishes nothing twice.
 #
 # Nothing to set up: the release goes to this repository with the workflow's own token.
+#
+# Code signing (SignPath Foundation, see "Code signing policy" in the README) turns on by itself once the repository
+# has the SIGNPATH_API_TOKEN secret and the SIGNPATH_ORGANIZATION_ID variable (SIGNPATH_PROJECT_SLUG is optional,
+# "client" by default). The executable goes to SignPath, waits for the manual approval there, and comes back signed
+# before update.json records its sha256 (signing changes the file). A dry run uses the "test-signing" policy, a tag
+# "release-signing". Without them, the release is built unsigned, as before.
 name: release
 
 on:
@@ -35,6 +41,8 @@ on:
 
 permissions:
   contents: write
+  # The SignPath step reads the uploaded executable with the workflow's token.
+  actions: read
 
 defaults:
   run:
@@ -79,6 +87,39 @@ jobs:
         env:
           RELEASE_REPO: ${{ github.repository }}
         run: bash tools/client.sh
+
+      - name: Unsigned executable (for signing)
+        id: unsigned
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-${{ steps.version.outputs.version }}
+          path: build/client/SteinClient.exe
+          retention-days: 1
+
+      - name: Sign (SignPath, approved by hand)
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'client' }}
+          signing-policy-slug: ${{ env.DRY_RUN == 'true' && 'test-signing' || 'release-signing' }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 2700
+          output-artifact-directory: signed
+
+      # The signed file replaces the built one, and update.json gets its sha256: the launcher checks its update by it.
+      - name: Signed executable in update.json
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        run: |
+          set -euo pipefail
+          cp signed/SteinClient.exe build/client/SteinClient.exe
+          sha="$(sha256sum build/client/SteinClient.exe | cut -d' ' -f1)"
+          sed -i -E "s/(\"SteinClient\.exe\": \")[0-9a-f]{64}/\1$sha/" build/client/update.json
+          grep -q "$sha" build/client/update.json
+          cat build/client/update.json
 
       - name: Files and notes
         env:

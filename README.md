@@ -45,6 +45,22 @@ Delete `SteinClient.exe` and the folder `%APPDATA%\.steinclient` (worlds, settin
 your `saves` first if you want them). Saved Microsoft accounts are in `%APPDATA%\.steinauth` and in Windows' Credential
 Manager (entries ending in `.SteinAuth`).
 
+## Code signing policy
+
+> Not in effect yet: `SteinClient.exe` is not signed today. Each release lists the SHA-256 of its files, and the
+> launcher checks its own updates against them.
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+- **Committers and reviewers:** [X4vieer](https://github.com/brenoxavier)
+- **Approvers:** [X4vieer](https://github.com/brenoxavier)
+
+Only `SteinClient.exe` built by this repository's GitHub Actions workflow (`release.yml`) from its public source is
+signed, and every signing request is approved by hand. Nothing built elsewhere, and no third-party file, is signed with
+this certificate. What the launcher sends over the network is in [Privacy](#privacy); how to remove it is in
+[Uninstalling](#uninstalling).
+
 ## Building
 
 You need [Rust](https://rustup.rs) (stable) and [Node.js](https://nodejs.org) 20 or newer. The interface is built

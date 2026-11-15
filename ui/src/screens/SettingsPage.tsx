@@ -10,150 +10,65 @@ import { useState } from 'react'
 
 import { api, AppState, GfxApi } from '../api'
 import { ErrorText } from '../components/ErrorText'
-import { Head } from '../components/Head'
 import { SectionHead } from '../components/SectionHead'
 import { Icon } from '../ds/Icon'
-import { previewDev, previewNickError, previewOffline } from '../preview'
+import { previewDev } from '../preview'
 
-/** The Settings page: accounts, game options, the About section and the developer options. */
-export function SettingsPage({ state, refresh, onAdd }: { state: AppState; refresh: () => void; onAdd: () => void }) {
+/** The Settings page: game options, test versions, the About section and the developer options. */
+export function SettingsPage({ state, refresh }: { state: AppState; refresh: () => void }) {
     return (
         <div className="page">
             <div className="page__head">
-                <div className="eyebrow">III · Ajustes</div>
+                <div className="eyebrow">IV · Ajustes</div>
                 <h1 className="page__title">Ajustes</h1>
             </div>
-            <AccountsSection state={state} refresh={refresh} onAdd={onAdd} />
             <GameSection state={state} refresh={refresh} />
+            <TestSection state={state} refresh={refresh} />
             <AboutSection state={state} />
             <DevSection state={state} refresh={refresh} />
         </div>
     )
 }
 
-/** The accounts: switch, remove, add a Microsoft account or an offline nick. */
-function AccountsSection({ state, refresh, onAdd }: { state: AppState; refresh: () => void; onAdd: () => void }) {
-    const [offlineForm, setOfflineForm] = useState(previewOffline)
-    const [nick, setNick] = useState(previewOffline ? 'jogador teste' : '')
-    const [nickError, setNickError] = useState(previewNickError)
-    const addOffline = async (e: React.FormEvent) => {
-        e.preventDefault()
-        setNickError('')
+/**
+ * "Versões de teste": the newest test versions (release candidates) of the Stein and of the mods, installed on their
+ * own on the next Play. Off: back to the stable ones.
+ */
+function TestSection({ state, refresh }: { state: AppState; refresh: () => void }) {
+    const [error, setError] = useState('')
+    const toggle = async () => {
+        setError('')
         try {
-            await api.addOfflineAccount(nick)
-            setNick('')
-            setOfflineForm(false)
-            refresh()
+            await api.setTestVersions(!state.testVersions)
         } catch (err) {
-            setNickError(String(err))
+            setError(String(err))
         }
-    }
-    const select = async (uuid: string) => {
-        await api.selectAccount(uuid)
-        refresh()
-    }
-    const remove = async (uuid: string) => {
-        await api.removeAccount(uuid)
         refresh()
     }
     return (
         <div className="section">
-            <SectionHead n="I" label="Contas" />
+            <SectionHead n="II" label="Atualizações" />
             <div className="rows">
-                {state.accounts.map((a) => (
-                    <div className="row" key={a.uuid}>
-                        <Head account={a} size={32} />
-                        <div className="row__main">
-                            <div className="row__title">
-                                {a.name}
-                                {a.offline && <span className="row__tag">Offline</span>}
-                            </div>
-                            <div className="row__text">
-                                {a.uuid === state.current ? 'Em uso' : a.offline ? 'Conta offline' : 'Conta Microsoft'}
-                            </div>
+                <div className="row">
+                    <div className="row__main">
+                        <div className="row__title">
+                            Versões de teste
+                            {state.testPack && <span className="row__tag row__tag--test">Em uso: {state.testPack}</span>}
                         </div>
-                        {a.uuid !== state.current && (
-                            <button className="btn btn-ghost" onClick={() => select(a.uuid)}>
-                                Usar
-                            </button>
-                        )}
-                        <button className="btn btn-danger" onClick={() => remove(a.uuid)} aria-label="Remover">
-                            <Icon name="logout" size={14} stroke={1.4} />
-                        </button>
+                        <div className="row__text">
+                            Receba as versões novas do Stein e dos mods antes de todo mundo. Podem ter problemas.
+                            Desligado, volta para as versões normais.
+                        </div>
                     </div>
-                ))}
-            </div>
-            {offlineForm ? (
-                <OfflineForm
-                    nick={nick}
-                    setNick={setNick}
-                    error={nickError}
-                    onSubmit={addOffline}
-                    onCancel={() => {
-                        setOfflineForm(false)
-                        setNickError('')
-                    }}
-                />
-            ) : (
-                <div className="actions">
-                    <button className="btn btn-ghost" onClick={onAdd}>
-                        <Icon name="plus" size={14} stroke={1.4} />
-                        Adicionar conta Microsoft
-                    </button>
-                    {state.hasOwner && (
-                        <button className="btn btn-ghost" onClick={() => setOfflineForm(true)}>
-                            <Icon name="plus" size={14} stroke={1.4} />
-                            Adicionar conta offline
-                        </button>
-                    )}
+                    <button
+                        className={'toggle' + (state.testVersions ? ' toggle--on' : '')}
+                        onClick={toggle}
+                        aria-label="Versões de teste"
+                    />
                 </div>
-            )}
-            <p className="note">
-                Contas offline servem para jogar sozinho e em servidores sem autenticação. Elas ficam disponíveis
-                enquanto houver uma conta original no launcher.
-            </p>
-        </div>
-    )
-}
-
-/** The form for a new offline account's nick. */
-function OfflineForm({
-    nick,
-    setNick,
-    error,
-    onSubmit,
-    onCancel,
-}: {
-    nick: string
-    setNick: (nick: string) => void
-    error: string
-    onSubmit: (e: React.FormEvent) => void
-    onCancel: () => void
-}) {
-    return (
-        <form className="offline-form" onSubmit={onSubmit}>
-            <input
-                className="input"
-                value={nick}
-                onChange={(e) => setNick(e.target.value)}
-                placeholder="Nick"
-                maxLength={16}
-                autoFocus
-                spellCheck={false}
-                aria-label="Nick da conta offline"
-            />
-            <button className="sl-btn sl-btn--accent" type="submit" disabled={nick.trim().length < 3}>
-                Adicionar
-            </button>
-            <button
-                className="btn btn-ghost"
-                type="button"
-                onClick={onCancel}
-            >
-                Cancelar
-            </button>
+            </div>
             {error && <ErrorText error={error} />}
-        </form>
+        </div>
     )
 }
 
@@ -174,12 +89,12 @@ function GameSection({ state, refresh }: { state: AppState; refresh: () => void 
     }
     return (
         <div className="section">
-            <SectionHead n="II" label="Jogo" />
+            <SectionHead n="I" label="Jogo" />
             <div className="rows">
                 <div className="row">
                     <div className="row__main">
                         <div className="row__title">Fechar o launcher ao jogar</div>
-                        <div className="row__text">O launcher fecha quando o jogo abre e volta sozinho se o jogo for encerrado por um erro. Desligado, ele fica minimizado.</div>
+                        <div className="row__text">Fecha quando o jogo abre e volta se o jogo der erro. Desligado, fica minimizado.</div>
                     </div>
                     <button className={'toggle' + (state.closeOnPlay ? ' toggle--on' : '')} onClick={closeOnPlay} />
                 </div>
@@ -189,7 +104,7 @@ function GameSection({ state, refresh }: { state: AppState; refresh: () => void 
                             Stein GFX
                             <span className="row__tag">Novo</span>
                         </div>
-                        <div className="row__text">O renderer novo do Stein. Desligado, o jogo abre com o renderer de sempre. Vale a partir da próxima abertura do jogo.</div>
+                        <div className="row__text">O renderer novo do Stein. Desligado, usa o do jogo. Vale na próxima vez que o jogo abrir.</div>
                     </div>
                     <button className={'toggle' + (state.gfx ? ' toggle--on' : '')} onClick={gfx} aria-label="Stein GFX" />
                 </div>
@@ -200,8 +115,8 @@ function GameSection({ state, refresh }: { state: AppState; refresh: () => void 
                         </div>
                         <div className="row__text">
                             {state.gfx
-                                ? 'Com qual API o Stein GFX desenha. O Vulkan é o padrão e o mais rápido; se ele não rodar neste computador, o jogo abre sozinho com o OpenGL. Vale a partir da próxima abertura do jogo.'
-                                : 'Só vale com o Stein GFX ligado. Desligado, o jogo abre com o OpenGL.'}
+                                ? 'O Vulkan é o padrão e o mais rápido. Se não rodar aqui, o jogo usa o OpenGL. Vale na próxima vez que o jogo abrir.'
+                                : 'Só com o Stein GFX ligado.'}
                         </div>
                     </div>
                     <div className="seg" role="radiogroup" aria-label="API gráfica">
@@ -315,8 +230,8 @@ function DevSection({ state, refresh }: { state: AppState; refresh: () => void }
                     </div>
                     <p className="note">
                         {state.running
-                            ? 'Com o jogo aberto, mude os logs no menu do Stein Loader, na aba Registro.'
-                            : 'Os logs ficam em logs/stein, um arquivo por assunto. São os mesmos interruptores da aba Registro do menu do Stein Loader no jogo: mudar aqui muda lá, e o contrário também.'}
+                            ? 'Com o jogo aberto, mude no menu do Stein, aba Registro.'
+                            : 'Ficam em logs/stein, um arquivo por assunto. São os mesmos da aba Registro no jogo.'}
                     </p>
                     <div className="dev-args">
                         <div className="row__title">Argumentos da JVM</div>
@@ -331,8 +246,7 @@ function DevSection({ state, refresh }: { state: AppState; refresh: () => void }
                         />
                     </div>
                     <p className="note">
-                        Opções -D do Stein para testes, passadas ao jogo por último. Valem a partir da próxima abertura do
-                        jogo. Deixe vazio se não souber para que servem.
+                        Opções -D para testes. Valem na próxima vez que o jogo abrir. Deixe vazio se não souber.
                     </p>
                     {error && <ErrorText error={error} />}
                     <div className="actions">

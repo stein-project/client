@@ -13,7 +13,7 @@
 //!   stein-cli [--dir DIR] status             what the next prepare will install, update or remove
 //!   stein-cli [--dir DIR] sources            the third-party mod sources
 //!   stein-cli [--dir DIR] source add LINK|JSON    add a third-party source (without the UI's warning)
-//!   stein-cli [--dir DIR] source remove LINK      remove a source (its mods stay in the folder)
+//!   stein-cli [--dir DIR] source remove LINK      remove a source and its mod files (settings stay)
 //!   stein-cli [--dir DIR] migrate            run the migration of mods that moved from official to third-party
 //!   stein-cli [--dir DIR] accounts           the saved accounts
 //!   stein-cli [--dir DIR] play [UUID]        prepare, sign in (no code, from the keychain) and start the game
@@ -38,9 +38,11 @@ const USAGE: &str = r"usage: stein-cli [--dir DIR] COMMAND
   prepare                 download and install whatever is missing
   login                   sign in with a Microsoft account (device code)
   status                  what the next prepare will install, update or remove
+  versions                the packs and mod versions offered (* = the one the next prepare installs)
+  check                   the mods the installed Stein Loader may not run (the check before the game opens)
   sources                 the third-party mod sources
   source add LINK|JSON    add a third-party source (without the UI's warning)
-  source remove LINK      remove a source (its mods stay in the folder)
+  source remove LINK      remove a source and its mod files (settings stay)
   migrate                 run the migration of mods that moved from official to third-party
   accounts                the saved accounts
   play [UUID]             prepare, sign in (no code, from the keychain) and start the game
@@ -95,7 +97,11 @@ async fn main() -> Result<()> {
                 Some((bridge, loader)) => println!("installed: Stein Bridge {bridge}, Stein Loader (library) {loader}"),
                 None => println!("Stein Loader not installed"),
             }
-            let changes = stein_core::stein::pending(&root, &index, &settings.mods);
+            let plan = stein_core::versions::plan_for(&root, &index, &settings);
+            for b in &plan.blocked {
+                println!("{}: kept as it is, needs Stein Loader {}", b.id, b.needs_loader);
+            }
+            let changes = stein_core::stein::pending(&root, &plan.index, &settings.mods);
             if changes.is_empty() {
                 println!("up to date");
             }
@@ -106,6 +112,41 @@ async fn main() -> Result<()> {
                     c.from.as_deref().unwrap_or("(none)"),
                     c.to.as_deref().unwrap_or("(remove)")
                 );
+            }
+        }
+        Some("versions") => {
+            let index = stein_core::stein::index(&stein_core::net::client(), &root).await?;
+            let plan = stein_core::versions::plan_for(&root, &index, &settings);
+            let chosen = plan.pack.as_ref().map(|p| p.tag.clone()).unwrap_or_else(|| plan.index.loader_tag());
+            for p in &index.packs {
+                let mark = if p.tag == chosen { "*" } else { " " };
+                let test = if p.test { " (test)" } else { "" };
+                println!("{mark} pack {}{test}: Bridge {}, Loader {} ({})", p.version, p.bridge, p.loader, p.date);
+            }
+            for m in &index.mods {
+                let now = plan.index.mods.iter().find(|c| c.id == m.id).map(|c| c.version.clone());
+                for v in stein_core::versions::versions_of(m) {
+                    let mark = if now.as_deref() == Some(v.version.as_str()) { "*" } else { " " };
+                    let test = if v.test { " (test)" } else { "" };
+                    println!("{mark} {} {}{test}: Loader {}+", m.id, v.version, v.loader);
+                }
+            }
+            for m in &index.extras {
+                println!("  {} {} (extra, not added)", m.id, m.version);
+            }
+        }
+        Some("check") => {
+            let (loader, warnings) = stein_core::modcheck::check(&root);
+            let Some(loader) = loader else { bail!("no Stein Loader installed") };
+            println!("Stein Loader {loader}: {} warning(s)", warnings.len());
+            for w in warnings {
+                println!("{} {}", w.name, w.version);
+                for m in &w.missing {
+                    println!("  missing {m}");
+                }
+                if let Some(r) = &w.reason {
+                    println!("  known break: {r}");
+                }
             }
         }
         Some("sources") => {
