@@ -333,10 +333,15 @@ pub fn command(root: &Root, session: &Session, client_version: &str, debug: bool
     Ok(cmd)
 }
 
-/// Starts the game, with its output in `stein-client/logs/game.log`.
+/// Starts the game, with its output in `logs/stein-client/game.log`; the previous one goes into an archive first
+/// ([`crate::gamelog`]).
 pub fn spawn(root: &Root, session: &Session, client_version: &str, debug: bool) -> Result<std::process::Child> {
     let mut cmd = command(root, session, client_version, debug)?;
     std::fs::create_dir_all(root.logs())?;
+    if let Err(e) = crate::gamelog::archive_previous(root) {
+        // never in the way of playing: the game starts, only the old log may be overwritten
+        crate::registry::note(root, "launcher.log", &format!("could not archive the previous game.log: {e:#}"));
+    }
     let log = std::fs::File::create(root.logs().join("game.log"))?;
     cmd.stdout(Stdio::from(log.try_clone()?)).stderr(Stdio::from(log)).stdin(Stdio::null());
     #[cfg(windows)]
