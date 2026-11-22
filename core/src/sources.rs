@@ -75,6 +75,32 @@ struct Moved {
     source: String,
 }
 
+/// An official mod turned on once for whoever already has another one installed (`enables` in `migrations.json`): Sprint
+/// for whoever had Combat, since Combat's toggle sprint moved to Sprint on 2026-11-22 (Sprint brings the old key over on
+/// its first start). Kept apart from `migrations`, which an older launcher reads strictly: a new kind of entry there
+/// would make it drop the whole list.
+#[derive(Debug, Clone, Deserialize)]
+struct Enable {
+    /// The marker in the settings: each one runs once per folder, so a player who turns the mod off later keeps it off.
+    id: String,
+    /// The official mod to turn on (its id in the index, as in the settings).
+    #[serde(rename = "mod")]
+    mod_id: String,
+    /// The id inside the mod that must be installed or enabled for this to apply.
+    #[serde(rename = "whenInstalled")]
+    when_installed: String,
+    /// The notice for the player when the mod was turned on.
+    #[serde(default)]
+    notice: String,
+}
+
+/// The enables in the registry's stored copy (none without a registry).
+fn enables(root: &Root) -> Vec<Enable> {
+    crate::registry::cached_json(root, MIGRATIONS_FILE)
+        .and_then(|j| serde_json::from_value(j["enables"].clone()).ok())
+        .unwrap_or_default()
+}
+
 /// The migrations in the registry's stored copy (none without a registry).
 fn migrations(root: &Root) -> Vec<Migration> {
     crate::registry::cached_json(root, MIGRATIONS_FILE)
@@ -365,7 +391,34 @@ pub fn migrate(root: &Root) -> Result<Option<String>> {
             last = Some(n);
         }
     }
+    for e in enables(root) {
+        if let Some(n) = run_enable(root, &e)? {
+            last = Some(n);
+        }
+    }
     Ok(last)
+}
+
+/// Turns the official mod on, once, if the other mod is installed (its file in the mods folder) or enabled. Without a
+/// settings file the defaults apply anyway; the marker is written either way, so it never runs again.
+fn run_enable(root: &Root, enable: &Enable) -> Result<Option<String>> {
+    let mut s = Settings::load(root);
+    if enable.id.is_empty() || enable.mod_id.is_empty() || s.migrations.contains(&enable.id) {
+        return Ok(None);
+    }
+    let had =
+        crate::stein::mod_files(root).contains_key(&enable.when_installed) || s.mods.contains(&enable.when_installed);
+    s.migrations.push(enable.id.clone());
+    let mut notice = None;
+    if had && !s.mods.contains(&enable.mod_id) {
+        s.mods.push(enable.mod_id.clone());
+        if !enable.notice.is_empty() {
+            notice = Some(enable.notice.clone());
+            s.notice = notice.clone();
+        }
+    }
+    s.save(root)?;
+    Ok(notice)
 }
 
 fn run_migration(root: &Root, migration: &Migration) -> Result<Option<String>> {
@@ -455,6 +508,64 @@ mod tests {
         z.start_file("steinmod.json", zip::write::SimpleFileOptions::default()).unwrap();
         std::io::Write::write_all(&mut z, format!(r#"{{"id":"{id}","version":"0.1.0"}}"#).as_bytes()).unwrap();
         z.finish().unwrap();
+    }
+
+    fn write_enables(r: &Root) {
+        std::fs::create_dir_all(r.own().join("registry")).unwrap();
+        std::fs::write(
+            r.own().join("registry").join("migrations.json"),
+            r#"{"schema": 1, "migrations": [], "enables": [{"id": "sprint-for-combat", "mod": "sprint",
+                "whenInstalled": "steincombat", "notice": "Sprint on"}]}"#,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn a_mod_is_turned_on_once_for_whoever_has_the_other() {
+        let (r, dir) = root();
+        write_enables(&r);
+        fake_mod(&dir, "Combat.steinmod", "steincombat");
+        Settings { mods: vec!["hud".into()], ..Settings::default() }.save(&r).unwrap();
+        assert_eq!(migrate(&r).unwrap().as_deref(), Some("Sprint on"));
+        let s = Settings::load(&r);
+        assert!(s.mods.contains(&"sprint".to_string()) && s.mods.contains(&"hud".to_string()));
+        assert!(s.migrations.contains(&"sprint-for-combat".to_string()));
+        // Turned off afterwards: it stays off.
+        let mut s = Settings::load(&r);
+        s.mods.retain(|m| m != "sprint");
+        s.save(&r).unwrap();
+        assert_eq!(migrate(&r).unwrap(), None);
+        assert!(!Settings::load(&r).mods.contains(&"sprint".to_string()));
+    }
+
+    #[test]
+    fn a_mod_is_not_turned_on_without_the_other() {
+        let (r, _dir) = root();
+        write_enables(&r);
+        Settings { mods: vec!["hud".into()], ..Settings::default() }.save(&r).unwrap();
+        assert_eq!(migrate(&r).unwrap(), None);
+        let s = Settings::load(&r);
+        assert!(!s.mods.contains(&"sprint".to_string()));
+        assert!(s.migrations.contains(&"sprint-for-combat".to_string()));
+    }
+
+    #[test]
+    fn enabled_in_the_settings_counts_as_installed() {
+        let (r, _dir) = root();
+        write_enables(&r);
+        Settings { mods: vec!["steincombat".into()], ..Settings::default() }.save(&r).unwrap();
+        migrate(&r).unwrap();
+        assert!(Settings::load(&r).mods.contains(&"sprint".to_string()));
+    }
+
+    #[test]
+    fn an_older_migrations_file_without_enables_still_reads() {
+        let (r, _dir) = root();
+        assert!(enables(&r).is_empty());
+        write_enables(&r);
+        assert_eq!(enables(&r).len(), 1);
+        // The strict list an older launcher reads is untouched by the new entries.
+        assert!(migrations(&r).is_empty());
     }
 
     #[test]
